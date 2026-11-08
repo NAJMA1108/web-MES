@@ -1,0 +1,895 @@
+
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MPB-01 MES | Rotary Filling</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+<div class="dashboard" id="dashboard">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+
+        <div class="brand">
+            <h2>MPB-01 MES</h2>
+            <span>ROTARY FILLING</span>
+        </div>
+
+        <p class="nav-title">NAVIGASI SISTEM</p>
+
+        <nav class="nav-menu">
+
+            <button class="nav-link active" data-page="live" title="Live">
+                <span class="nav-icon">⌁</span>
+                <span class="nav-text">Live</span>
+            </button>
+
+            <button class="nav-link" data-page="produksi" title="Produksi">
+                <span class="nav-icon">⚒</span>
+                <span class="nav-text">Produksi</span>
+            </button>
+
+            <button class="nav-link" data-page="kualitas" title="Kualitas">
+                <span class="nav-icon">⚙</span>
+                <span class="nav-text">Kualitas</span>
+            </button>
+
+            <button class="nav-link" data-page="downtime" title="Downtime">
+                <span class="nav-icon">◷</span>
+                <span class="nav-text">Downtime</span>
+            </button>
+
+            <button class="nav-link" data-page="traceability" title="Traceability">
+                <span class="nav-icon">▦</span>
+                <span class="nav-text">Traceability</span>
+            </button>
+
+            <button class="nav-link" data-page="laporan" title="Laporan">
+                <span class="nav-icon">▤</span>
+                <span class="nav-text">Laporan</span>
+            </button>
+
+            <button class="nav-link" data-page="pengaturan" title="Pengaturan">
+                <span class="nav-icon">☷</span>
+                <span class="nav-text">Pengaturan</span>
+            </button>
+
+        </nav>
+
+        <!-- OPERATOR -->
+        <div class="sidebar-bottom">
+
+            <div class="operator-icon">▣</div>
+
+            <div class="operator-info">
+                <small id="operatorShift">SHIFT PAGI</small>
+                <strong id="operatorName">Operator</strong>
+            </div>
+
+            <div class="plc-status">
+                <span class="green-dot" id="plcIndicator"></span>
+                <span id="plcStatus">Memeriksa koneksi...</span>
+                <span class="ip-address" id="plcAddress">--</span>
+            </div>
+
+        </div>
+
+    </aside>
+
+
+    <!-- MAIN CONTENT -->
+    <main class="main-content">
+
+        <!-- TOPBAR -->
+        <header class="topbar">
+
+            <div class="topbar-left">
+
+                <button class="toggle-sidebar"
+                        id="toggleSidebar"
+                        title="Tutup atau buka sidebar">
+                    ☰
+                </button>
+
+                <div>
+                    <strong id="machineName">MPB-01</strong>
+                    <span>Mesin Pengisi Botol Rotary</span>
+                </div>
+
+                <span class="live-badge" id="apiConnection">
+                    ● CONNECTING
+                </span>
+
+            </div>
+
+            <div class="topbar-actions">
+
+                <span class="top-info" id="shiftInfo">
+                    ◷ Shift Pagi · --
+                </span>
+
+                <span class="top-info" id="currentDate">
+                    ▣ Memuat tanggal...
+                </span>
+
+                <span class="simulation" id="simulationStatus">
+                    API CHECK
+                </span>
+
+                <button class="icon-btn"
+                        id="themeToggle"
+                        title="Ganti tema">
+                    ☼
+                </button>
+
+                <button class="profile-btn" title="Operator">
+                    ♙
+                </button>
+
+            </div>
+
+        </header>
+
+
+        <!-- ===================================
+             HALAMAN LIVE
+        ==================================== -->
+        <section class="page active" id="page-live">
+
+            <!-- STATUS MESIN -->
+            <div class="machine-status">
+
+                <div class="status-heading">
+
+                    <span class="running-badge" id="machineStatus">
+                        ● MENUNGGU DATA
+                    </span>
+
+                    <span class="muted">TAHAP AKTIF:</span>
+
+                    <h2 id="activeProcess">
+                        Menunggu data mesin
+                    </h2>
+
+                    <span class="task-badge" id="machineTask">
+                        Menunggu respons API
+                    </span>
+
+                </div>
+
+                <div class="mcb-status">
+                    MCB STATUS:
+                    <span id="mcbMain">● -- Utama</span>
+                    <span id="mcbMachine">● -- Mesin</span>
+                    <span id="mcbControl">● -- Kontrol</span>
+                    <span id="mcbLamp">● -- Lampu</span>
+                </div>
+
+            </div>
+
+
+            <!-- STATISTIK LIVE -->
+            <div class="stats-grid">
+
+                <div class="stat-card">
+                    <div class="stat-label">BOTOL SELESAI</div>
+                    <h1>
+                        <span id="totalProduction">--</span>
+                        <small>/ <span id="productionTarget">--</span> target</small>
+                    </h1>
+                    <div class="stat-footer">
+                        <span class="positive" id="productionRate">-- bph</span>
+                        <span id="productionPercentage">Shift: --</span>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-label">ISI KOTAK</div>
+                    <h1>
+                        <span id="boxFilled">--</span>
+                        <small>/ <span id="boxCapacity">--</span> botol</small>
+                    </h1>
+                    <div class="progress">
+                        <div id="boxProgress" style="width:0%"></div>
+                    </div>
+                    <div class="stat-footer">
+                        <span id="boxNumber">Kotak: --</span>
+                        <span id="boxPercentage">--% terisi</span>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-label">SISA PETI</div>
+                    <h1>
+                        <span id="palletRemaining">--</span>
+                        <small>/ <span id="palletCapacity">--</span> peti</small>
+                    </h1>
+                    <div class="progress brown">
+                        <div id="palletProgress" style="width:0%"></div>
+                    </div>
+                    <div class="stat-footer">
+                        <span id="palletName">Stok Pallet</span>
+                        <span id="palletPercentage">--% sisa</span>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-label">YIELD KUALITAS</div>
+                    <h1>
+                        <span id="qualityYield">--</span><small>%</small>
+                    </h1>
+                    <div class="stat-footer">
+                        <span class="danger" id="rejectCount">Reject: --</span>
+                        <span id="volumeTolerance">Toleransi: --</span>
+                    </div>
+                </div>
+
+            </div>
+
+
+            <!-- TURRET DAN GPIO -->
+            <div class="machine-grid">
+
+                <!-- TURRET -->
+                <div class="panel">
+
+                    <div class="panel-title">
+                        <h3>◉ Turret MPB-01 (10 Slot Rotary)</h3>
+                        <span class="pitch" id="turretPitch">Pitch: --°</span>
+                    </div>
+
+                    <div class="turret-actions">
+
+                        <button onclick="inchTurret()">
+                            ◉ Inching Turret
+                        </button>
+
+                        <button onclick="resetTurret()">
+                            ↻ Reset Posisi Nol
+                        </button>
+
+                    </div>
+
+                    <div class="turret-area">
+
+                        <div class="turret-circle" id="turretCircle">
+
+                            <div class="outer-ring"></div>
+                            <div class="inner-ring"></div>
+
+                            <div class="turret-center">
+                                <strong id="turretAngle">--°</strong>
+                                <small id="turretSync">MENUNGGU DATA</small>
+                            </div>
+
+                            <div class="station active-station s1">01</div>
+                            <div class="station s2">02</div>
+                            <div class="station s3">03</div>
+                            <div class="station filled s4">04</div>
+                            <div class="station s5">05</div>
+                            <div class="station s6">06</div>
+                            <div class="station s7">07</div>
+                            <div class="station filled s8">08</div>
+                            <div class="station filled s9">09</div>
+                            <div class="station s10">10</div>
+
+                        </div>
+
+                        <div class="turret-info">
+                            Torsi Servo: <b id="servoTorque">-- Nm</b> |
+                            RPM: <b id="servoRPM">--</b>
+                        </div>
+
+                        <div class="homing-info" id="homingStatus">
+                            ● Homing Index: Menunggu data
+                        </div>
+
+                    </div>
+
+                    <div class="turret-legend">
+                        <span>🔵 Infeed</span>
+                        <span>🟢 Isi</span>
+                        <span>🟤 Capping</span>
+                        <span>🔴 Buang</span>
+                    </div>
+
+                </div>
+
+
+                <!-- GPIO -->
+                <div class="panel">
+
+                    <div class="panel-title">
+                        <h3>▦ Panel GPIO</h3>
+                        <span class="gpio-badge">Opto-Isolated</span>
+                    </div>
+
+                    <p class="gpio-description">
+                        Status real-time sensor optik, limit switch,
+                        dan driver stepper PLC.
+                    </p>
+
+                    <div class="gpio-grid">
+
+                        <div class="gpio-item">
+                            <div>
+                                <b>STEP</b>
+                                <strong id="gpioStep">MENUNGGU DATA</strong>
+                            </div>
+                            <span class="indicator inactive" id="indicatorStep"></span>
+                        </div>
+
+                        <div class="gpio-item">
+                            <div>
+                                <b>DIR</b>
+                                <strong id="gpioDir">MENUNGGU DATA</strong>
+                            </div>
+                            <span class="indicator inactive" id="indicatorDir"></span>
+                        </div>
+
+                        <div class="gpio-item">
+                            <div>
+                                <b>EN</b>
+                                <strong id="gpioEnable">MENUNGGU DATA</strong>
+                            </div>
+                            <span class="indicator inactive" id="indicatorEnable"></span>
+                        </div>
+
+                        <div class="gpio-item">
+                            <div>
+                                <b>POMPA</b>
+                                <strong id="gpioPump">MENUNGGU DATA</strong>
+                            </div>
+                            <span class="indicator inactive" id="indicatorPump"></span>
+                        </div>
+
+                        <div class="gpio-item">
+                            <div>
+                                <b>BUZZER</b>
+                                <strong class="off" id="gpioBuzzer">MENUNGGU DATA</strong>
+                            </div>
+                            <span class="indicator inactive" id="indicatorBuzzer"></span>
+                        </div>
+
+                        <div class="gpio-item">
+                            <div>
+                                <b>IR</b>
+                                <strong id="gpioIR">MENUNGGU DATA</strong>
+                            </div>
+                            <span class="indicator inactive" id="indicatorIR"></span>
+                        </div>
+
+                        <div class="gpio-item">
+                            <div>
+                                <b>START</b>
+                                <strong id="gpioStart">MENUNGGU DATA</strong>
+                            </div>
+                            <span class="indicator inactive" id="indicatorStart"></span>
+                        </div>
+
+                        <div class="gpio-item">
+                            <div>
+                                <b>LIMIT</b>
+                                <strong class="off" id="gpioLimit">MENUNGGU DATA</strong>
+                            </div>
+                            <span class="indicator inactive" id="indicatorLimit"></span>
+                        </div>
+
+                    </div>
+
+                    <div class="gpio-footer">
+                        ⚡ Sinyal Bus:
+                        <b id="busVoltage">-- V DC</b>
+
+                        <span>
+                            Latensi: <b id="apiLatency">--</b>
+                        </span>
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- TIMELINE -->
+            <div class="panel timeline-panel">
+
+                <div class="panel-title">
+                    <h3>◷ Timeline Status Mesin</h3>
+
+                    <span id="totalDowntime">
+                        Total Downtime: --
+                    </span>
+                </div>
+
+                <div class="timeline-bar">
+                    <div class="running-time" id="runningBar" style="width:0%"></div>
+                    <div class="warning-time" id="warningBar" style="width:0%"></div>
+                    <div class="downtime-time" id="downtimeBar" style="width:0%"></div>
+                </div>
+
+                <div class="timeline-legend">
+                    <span id="shiftStart">--:--</span>
+                    <span id="runningPercentage">🟢 Berjalan (--%)</span>
+                    <span id="warningPercentage">🟠 Peringatan (--%)</span>
+                    <span id="downtimePercentage">🔴 Downtime (--%)</span>
+                    <span id="shiftEnd">--:--</span>
+                </div>
+
+            </div>
+
+
+            <!-- EVENT DAN TRACEABILITY -->
+            <div class="bottom-grid">
+
+                <!-- EVENT -->
+                <div class="panel">
+
+                    <div class="panel-title">
+                        <h3>▤ Event Terbaru</h3>
+                        <span>Real-time Stream</span>
+                    </div>
+
+                    <div class="table-wrap">
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>WAKTU</th>
+                                    <th>TIPE EVENT</th>
+                                    <th>SUMBER</th>
+                                    <th>DESKRIPSI</th>
+                                </tr>
+                            </thead>
+
+                            <tbody id="eventTable">
+                                <tr>
+                                    <td colspan="4" style="text-align:center">
+                                        Menunggu data event dari API...
+                                    </td>
+                                </tr>
+                            </tbody>
+
+                        </table>
+
+                    </div>
+
+                    <p id="eventInfo" style="font-size:11px;margin-top:12px">
+                        Menunggu data event...
+                    </p>
+
+                </div>
+
+
+                <!-- TRACEABILITY LIVE -->
+                <div class="panel">
+
+                    <div class="panel-title">
+                        <h3>▦ Traceability Botol (Real-time)</h3>
+                        <span class="pitch" id="batchNumber">Batch: --</span>
+                    </div>
+
+                    <input
+                        type="text"
+                        id="bottleSearch"
+                        class="search-input"
+                        placeholder="Cari nomor botol..."
+                    >
+
+                    <div class="table-wrap">
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>NO. BOTOL</th>
+                                    <th>SLOT</th>
+                                    <th>VOLUME</th>
+                                    <th>STATUS</th>
+                                    <th>DURASI</th>
+                                </tr>
+                            </thead>
+
+                            <tbody id="bottleTable">
+                                <tr>
+                                    <td colspan="5" style="text-align:center">
+                                        Menunggu data botol dari API...
+                                    </td>
+                                </tr>
+                            </tbody>
+
+                        </table>
+
+                    </div>
+
+                    <div class="panel-title" style="margin-top:15px">
+                        <span id="bottleInfo" style="font-size:11px">
+                            Data belum tersedia
+                        </span>
+
+                        <span style="font-size:11px">
+                            Sumber: MongoDB
+                        </span>
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- ===================================
+             HALAMAN PRODUKSI
+        ==================================== -->
+        <section class="page" id="page-produksi">
+
+            <div class="page-heading">
+                <h2>Monitoring Produksi</h2>
+                <p>Informasi pencapaian produksi mesin MPB-01.</p>
+            </div>
+
+            <div class="stats-grid">
+
+                <div class="stat-card">
+                    <div class="stat-label">TOTAL PRODUKSI</div>
+                    <h1><span id="prodTotal">--</span> <small>botol</small></h1>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-label">TARGET PRODUKSI</div>
+                    <h1><span id="prodTarget">--</span> <small>botol</small></h1>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-label">SISA TARGET</div>
+                    <h1><span id="prodRemaining">--</span> <small>botol</small></h1>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-label">PENCAPAIAN</div>
+                    <h1 id="prodPercentage">--%</h1>
+                </div>
+
+            </div>
+
+            <div class="panel content-panel">
+                <h3>Progress Produksi</h3>
+
+                <div class="large-progress">
+                    <div id="prodProgress" style="width:0%"></div>
+                </div>
+
+                <p id="prodDescription">
+                    Menunggu data ringkasan produksi dari API.
+                </p>
+            </div>
+
+            <div class="panel content-panel">
+                <h3>Informasi Mesin</h3>
+                <p id="productionMachineInfo">
+                    Data konfigurasi mesin akan ditampilkan di sini.
+                </p>
+            </div>
+
+        </section>
+
+
+        <!-- ===================================
+             HALAMAN KUALITAS
+        ==================================== -->
+        <section class="page" id="page-kualitas">
+
+            <div class="page-heading">
+                <h2>Monitoring Kualitas</h2>
+                <p>Pemantauan hasil pemeriksaan kualitas botol.</p>
+            </div>
+
+            <div class="stats-grid">
+
+                <div class="stat-card">
+                    <div class="stat-label">YIELD KUALITAS</div>
+                    <h1 id="qualityPageYield">--%</h1>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-label">BOTOL OK</div>
+                    <h1 id="qualityGood">--</h1>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-label">BOTOL REJECT</div>
+                    <h1 class="danger" id="qualityReject">--</h1>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-label">TOLERANSI</div>
+                    <h1 id="qualityTolerance">--</h1>
+                </div>
+
+            </div>
+
+            <div class="panel content-panel">
+                <h3>Hasil Pemeriksaan Botol</h3>
+
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>NO. BOTOL</th>
+                                <th>VOLUME</th>
+                                <th>STATUS</th>
+                                <th>DURASI</th>
+                            </tr>
+                        </thead>
+
+                        <tbody id="qualityTable">
+                            <tr>
+                                <td colspan="4" style="text-align:center">
+                                    Menunggu data kualitas dari API...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- ===================================
+             HALAMAN DOWNTIME
+        ==================================== -->
+        <section class="page" id="page-downtime">
+
+            <div class="page-heading">
+                <h2>Monitoring Downtime</h2>
+                <p>Riwayat waktu berhenti dan kondisi mesin.</p>
+            </div>
+
+            <div class="stats-grid">
+
+                <div class="stat-card">
+                    <div class="stat-label">TOTAL DOWNTIME</div>
+                    <h1 id="downtimeTotal">--</h1>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-label">MTBF</div>
+                    <h1 id="downtimeMTBF">--</h1>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-label">STATUS MESIN</div>
+                    <h1 id="downtimeMachineStatus">--</h1>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-label">DOWNTIME</div>
+                    <h1 id="downtimeRate">--%</h1>
+                </div>
+
+            </div>
+
+            <div class="panel content-panel">
+
+                <h3>Riwayat Event Mesin</h3>
+
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>WAKTU</th>
+                                <th>EVENT</th>
+                                <th>SUMBER</th>
+                                <th>DESKRIPSI</th>
+                            </tr>
+                        </thead>
+
+                        <tbody id="downtimeTable">
+                            <tr>
+                                <td colspan="4" style="text-align:center">
+                                    Menunggu riwayat event dari API...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- ===================================
+             HALAMAN TRACEABILITY
+        ==================================== -->
+        <section class="page" id="page-traceability">
+
+            <div class="page-heading">
+                <h2>Traceability Botol</h2>
+                <p>Pencarian informasi dan riwayat produksi botol.</p>
+            </div>
+
+            <div class="panel content-panel">
+
+                <h3>Pencarian Botol</h3>
+
+                <input
+                    type="text"
+                    id="traceSearch"
+                    class="search-input"
+                    placeholder="Masukkan nomor botol, contoh #00117"
+                >
+
+                <div class="table-wrap">
+
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>NO. BOTOL</th>
+                                <th>SLOT</th>
+                                <th>VOLUME</th>
+                                <th>STATUS</th>
+                                <th>DURASI</th>
+                            </tr>
+                        </thead>
+
+                        <tbody id="traceTable">
+                            <tr>
+                                <td colspan="5" style="text-align:center">
+                                    Menunggu data botol dari API...
+                                </td>
+                            </tr>
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+                <p id="traceInfo" style="font-size:11px;margin-top:12px">
+                    Data traceability berasal dari database.
+                </p>
+
+            </div>
+
+        </section>
+
+
+        <!-- ===================================
+             HALAMAN LAPORAN
+        ==================================== -->
+        <section class="page" id="page-laporan">
+
+            <div class="page-heading">
+                <h2>Laporan Produksi</h2>
+                <p>Ringkasan hasil produksi mesin MPB-01.</p>
+            </div>
+
+            <div class="stats-grid">
+
+                <div class="stat-card">
+                    <div class="stat-label">PRODUKSI</div>
+                    <h1 id="reportProduction">--</h1>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-label">KUALITAS</div>
+                    <h1 id="reportQuality">--%</h1>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-label">REJECT</div>
+                    <h1 id="reportReject">--</h1>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-label">DOWNTIME</div>
+                    <h1 id="reportDowntime">--</h1>
+                </div>
+
+            </div>
+
+            <div class="panel content-panel">
+
+                <h3>Ringkasan Produksi</h3>
+
+                <p id="reportDescription">
+                    Menunggu data laporan dari API.
+                </p>
+
+                <button class="action-button"
+                        onclick="window.print()">
+                    Cetak Laporan
+                </button>
+
+            </div>
+
+        </section>
+
+
+        <!-- ===================================
+             HALAMAN PENGATURAN
+        ==================================== -->
+        <section class="page" id="page-pengaturan">
+
+            <div class="page-heading">
+                <h2>Pengaturan Sistem</h2>
+                <p>Pengaturan tampilan dan koneksi dashboard.</p>
+            </div>
+
+            <div class="panel content-panel">
+
+                <h3>Pengaturan Tampilan</h3>
+
+                <div class="setting-row">
+                    <div>
+                        <strong>Mode Gelap</strong>
+                        <p>Mengubah tampilan dashboard menjadi mode gelap.</p>
+                    </div>
+
+                    <button class="action-button"
+                            onclick="toggleTheme()">
+                        Ganti Tema
+                    </button>
+                </div>
+
+                <div class="setting-row">
+                    <div>
+                        <strong>Sidebar</strong>
+                        <p>Mengatur ukuran sidebar navigasi.</p>
+                    </div>
+
+                    <button class="action-button"
+                            onclick="toggleSidebar()">
+                        Tutup / Buka Sidebar
+                    </button>
+                </div>
+
+            </div>
+
+            <div class="panel content-panel">
+
+                <h3>Status Koneksi</h3>
+
+                <div class="setting-row">
+                    <div>
+                        <strong>REST API</strong>
+                        <p>Alamat koneksi backend mesin.</p>
+                    </div>
+                    <strong id="apiSettingStatus">Memeriksa...</strong>
+                </div>
+
+                <div class="setting-row">
+                    <div>
+                        <strong>MongoDB</strong>
+                        <p>Status koneksi database melalui API.</p>
+                    </div>
+                    <strong id="databaseSettingStatus">Memeriksa...</strong>
+                </div>
+
+                <div class="setting-row">
+                    <div>
+                        <strong>Terakhir diperbarui</strong>
+                        <p>Waktu pengambilan data terakhir.</p>
+                    </div>
+                    <strong id="lastUpdated">--</strong>
+                </div>
+
+            </div>
+
+        </section>
+
+    </main>
+
+</div>
+
+<script src="script.js"></script>
+
+</body>
+</html>
