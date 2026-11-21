@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MPB-01 MES | Rotary Filling</title>
+    <title>MPB-01 MES | Rotary Water Filling Machine</title>
     <link rel="stylesheet" href="style.css">
 </head>
 
@@ -26,32 +26,37 @@
 
                 <button class="nav-link active" data-page="live" title="Live">
                     <span class="nav-icon">⌁</span>
-                    <span class="nav-text">Live</span>
+                    <span class="nav-text">Live Monitoring</span>
                 </button>
 
                 <button class="nav-link" data-page="produksi" title="Produksi">
                     <span class="nav-icon">⚒</span>
-                    <span class="nav-text">Produksi</span>
+                    <span class="nav-text">Produksi & OEE</span>
                 </button>
 
                 <button class="nav-link" data-page="kualitas" title="Kualitas">
                     <span class="nav-icon">⚙</span>
-                    <span class="nav-text">Kualitas</span>
+                    <span class="nav-text">Kualitas & SPC</span>
                 </button>
 
                 <button class="nav-link" data-page="downtime" title="Downtime">
                     <span class="nav-icon">◷</span>
-                    <span class="nav-text">Downtime</span>
+                    <span class="nav-text">Downtime & Reliabilitas</span>
+                </button>
+
+                <button class="nav-link" data-page="inventori" title="Inventori">
+                    <span class="nav-icon">▦</span>
+                    <span class="nav-text">Inventori & Material</span>
                 </button>
 
                 <button class="nav-link" data-page="traceability" title="Traceability">
-                    <span class="nav-icon">▦</span>
-                    <span class="nav-text">Traceability</span>
+                    <span class="nav-icon">🔍</span>
+                    <span class="nav-text">Traceability Botol</span>
                 </button>
 
                 <button class="nav-link" data-page="laporan" title="Laporan">
                     <span class="nav-icon">▤</span>
-                    <span class="nav-text">Laporan</span>
+                    <span class="nav-text">Laporan Sesi</span>
                 </button>
 
                 <button class="nav-link" data-page="pengaturan" title="Pengaturan">
@@ -61,13 +66,13 @@
 
             </nav>
 
-            <!-- OPERATOR -->
+            <!-- OPERATOR & PLC STATUS -->
             <div class="sidebar-bottom">
 
                 <div class="operator-icon">▣</div>
 
                 <div class="operator-info">
-                    <small id="operatorShift">SHIFT PAGI</small>
+                    <small id="operatorShift">SESI --</small>
                     <strong id="operatorName">Operator</strong>
                 </div>
 
@@ -95,7 +100,7 @@
                     </button>
 
                     <div>
-                        <strong id="machineName">ROTARY FILLING</strong>
+                        <strong id="machineName">ROTARY FILLING MPB-01</strong>
                         <span>Mesin Pengisi Botol Rotary</span>
                     </div>
 
@@ -108,7 +113,7 @@
                 <div class="topbar-actions">
 
                     <span class="top-info" id="shiftInfo">
-                        ◷ Shift Pagi · --
+                        ◷ Sesi: --
                     </span>
 
                     <span class="top-info" id="currentDate">
@@ -123,7 +128,7 @@
                         ☼
                     </button>
 
-                    <button class="profile-btn" title="Operator">
+                    <button class="profile-btn" title="Operator" id="profileBadge">
                         ♙
                     </button>
 
@@ -133,9 +138,15 @@
 
 
             <!-- ===================================
-             HALAMAN LIVE
-        ==================================== -->
+                 HALAMAN LIVE MONITORING
+            ==================================== -->
             <section class="page active" id="page-live">
+
+                <!-- ALERT BANNER (Jika Wadah Reject Hampir Penuh / Mesin Starving / Restock) -->
+                <div class="alert-banner warning" id="liveAlertBanner" style="display:none;">
+                    <span id="alertIcon">⚠️</span>
+                    <span id="alertMessage">Peringatan sistem</span>
+                </div>
 
                 <!-- STATUS MESIN -->
                 <div class="machine-status">
@@ -156,10 +167,14 @@
                             Menunggu respons API
                         </span>
 
+                        <span class="pitch" id="liveBatchBadge">Batch: #--</span>
+
+                        <span class="pitch" id="liveQcBadge" style="display:none;">QC: --</span>
+
                     </div>
 
                     <div class="mcb-status">
-                        MCB STATUS:
+                        MCB:
                         <span id="mcbMain">● -- Utama</span>
                         <span id="mcbMachine">● -- Mesin</span>
                         <span id="mcbControl">● -- Kontrol</span>
@@ -169,7 +184,7 @@
                 </div>
 
 
-                <!-- STATISTIK LIVE -->
+                <!-- STATISTIK LIVE KPI -->
                 <div class="stats-grid">
 
                     <div class="stat-card">
@@ -180,42 +195,37 @@
                         </h1>
                         <div class="stat-footer">
                             <span class="positive" id="productionRate">-- bph</span>
-                            <span id="productionPercentage">Shift: --</span>
+                            <span id="productionPercentage">Kemajuan: --%</span>
                         </div>
                     </div>
 
                     <div class="stat-card">
-                        <div class="stat-label">ISI KOTAK</div>
+                        <div class="stat-label">WIP TOTAL REAL-TIME</div>
                         <h1>
-                            <span id="boxFilled">--</span>
-                            <small>/ <span id="boxCapacity">--</span> botol</small>
+                            <span id="liveWipTotal">--</span>
+                            <small>/ 52 unit</small>
                         </h1>
                         <div class="progress">
-                            <div id="boxProgress" style="width:0%"></div>
+                            <div id="liveWipProgress" style="width:0%"></div>
                         </div>
                         <div class="stat-footer">
-                            <span id="boxNumber">Kotak: --</span>
-                            <span id="boxPercentage">--% terisi</span>
+                            <span id="liveWipStatus">Antrean Lini</span>
+                            <span id="liveWipPercentage">--% Buffer</span>
                         </div>
                     </div>
 
                     <div class="stat-card">
-                        <div class="stat-label">SISA PETI</div>
+                        <div class="stat-label">OEE SESI</div>
                         <h1>
-                            <span id="palletRemaining">--</span>
-                            <small>/ <span id="palletCapacity">--</span> peti</small>
+                            <span id="liveOee">--</span><small>%</small>
                         </h1>
-                        <div class="progress brown">
-                            <div id="palletProgress" style="width:0%"></div>
-                        </div>
                         <div class="stat-footer">
-                            <span id="palletName">Stok Pallet</span>
-                            <span id="palletPercentage">--% sisa</span>
+                            <span id="liveOeeComponents">A: --% | P: --% | Q: --%</span>
                         </div>
                     </div>
 
                     <div class="stat-card">
-                        <div class="stat-label">YIELD KUALITAS</div>
+                        <div class="stat-label">FIRST PASS YIELD (QC)</div>
                         <h1>
                             <span id="qualityYield">--</span><small>%</small>
                         </h1>
@@ -228,27 +238,85 @@
                 </div>
 
 
+                <!-- WIP FLOW MONITORING (4 STASIUN) -->
+                <div class="panel">
+                    <div class="panel-title">
+                        <h3>⇄ Aliran Work-In-Process (WIP) & Antrean Stasiun</h3>
+                        <span class="pitch">Real-time Bottle Flow</span>
+                    </div>
+
+                    <div class="wip-flow">
+
+                        <div class="wip-station" id="stationInfeed">
+                            <div class="wip-station-header">
+                                <b>1. Meja Infeed</b>
+                                <span class="pill info" id="infeedStatus">Ready</span>
+                            </div>
+                            <h3><span id="palletRemaining">--</span> <small>/ 30 botol (sisa peti)</small></h3>
+                            <div class="progress brown">
+                                <div id="palletProgress" style="width:0%"></div>
+                            </div>
+                            <small id="palletPercentage" style="display:block;margin-top:6px;color:var(--muted)">--% sisa bahan</small>
+                        </div>
+
+                        <div class="wip-station" id="stationTurret">
+                            <div class="wip-station-header">
+                                <b>2. Turret Rotary</b>
+                                <span class="pill info" id="turretWipBadge">10 Slot</span>
+                            </div>
+                            <h3><span id="liveTurretWip">--</span> <small>/ 10 slot aktif</small></h3>
+                            <div class="progress">
+                                <div id="turretWipProgress" style="width:0%"></div>
+                            </div>
+                            <small id="turretPitch" style="display:block;margin-top:6px;color:var(--muted)">Sudut: --°</small>
+                        </div>
+
+                        <div class="wip-station" id="stationBoxOk">
+                            <div class="wip-station-header">
+                                <b>3. Kotak OK Penampung</b>
+                                <span class="pill ok" id="boxOkBadge">OK Bin</span>
+                            </div>
+                            <h3><span id="boxFilled">--</span> <small>/ 30 botol</small></h3>
+                            <div class="progress">
+                                <div id="boxProgress" style="width:0%"></div>
+                            </div>
+                            <small id="boxPercentage" style="display:block;margin-top:6px;color:var(--muted)">--% terisi (Kotak: #1)</small>
+                        </div>
+
+                        <div class="wip-station" id="stationBoxNg">
+                            <div class="wip-station-header">
+                                <b>4. Wadah Reject (NG)</b>
+                                <span class="pill danger" id="boxNgBadge">NG Bin</span>
+                            </div>
+                            <h3><span id="liveBoxNg">--</span> <small>/ 12 botol maks</small></h3>
+                            <div class="progress">
+                                <div id="boxNgProgress" style="width:0%;background:var(--red)"></div>
+                            </div>
+                            <small id="boxNgStatus" style="display:block;margin-top:6px;color:var(--muted)">Normal</small>
+                        </div>
+
+                    </div>
+                </div>
+
+
                 <!-- TURRET DAN GPIO -->
                 <div class="machine-grid">
 
-                    <!-- TURRET -->
+                    <!-- TURRET ROTARY -->
                     <div class="panel">
 
                         <div class="panel-title">
-                            <h3>◉ Turret MPB-01 (10 Slot Rotary)</h3>
-                            <span class="pitch" id="turretPitch">Pitch: --°</span>
+                            <h3>◉ Turret Rotary (10 Slot)</h3>
+                            <span class="pitch" id="turretAngleHeader">0°</span>
                         </div>
 
                         <div class="turret-actions">
-
                             <button onclick="inchTurret()">
                                 ◉ Inching Turret
                             </button>
-
                             <button onclick="resetTurret()">
                                 ↻ Reset Posisi Nol
                             </button>
-
                         </div>
 
                         <div class="turret-area">
@@ -263,51 +331,50 @@
                                     <small id="turretSync">MENUNGGU DATA</small>
                                 </div>
 
-                                <div class="station active-station s1">01</div>
+                                <div class="station s1">01</div>
                                 <div class="station s2">02</div>
                                 <div class="station s3">03</div>
-                                <div class="station filled s4">04</div>
+                                <div class="station s4">04</div>
                                 <div class="station s5">05</div>
                                 <div class="station s6">06</div>
                                 <div class="station s7">07</div>
-                                <div class="station filled s8">08</div>
-                                <div class="station filled s9">09</div>
+                                <div class="station s8">08</div>
+                                <div class="station s9">09</div>
                                 <div class="station s10">10</div>
 
                             </div>
 
                             <div class="turret-info">
-                                Torsi Servo: <b id="servoTorque">-- Nm</b> |
-                                RPM: <b id="servoRPM">--</b>
+                                Ideal Cycle Time: <b id="idealCycleDisplay">4.1 s</b> |
+                                Actual Rata-rata: <b id="actualCycleDisplay">-- s</b>
                             </div>
 
                             <div class="homing-info" id="homingStatus">
-                                ● Homing Index: Menunggu data
+                                ● Status QC Terakhir: <b id="lastQcStatusText">--</b>
                             </div>
 
                         </div>
 
                         <div class="turret-legend">
-                            <span>🔵 Infeed</span>
-                            <span>🟢 Isi</span>
-                            <span>🟤 Capping</span>
-                            <span>🔴 Buang</span>
+                            <span>🔵 Slot 1: Infeed</span>
+                            <span>🟢 Slot 4: Isi Pompa</span>
+                            <span>🟤 Slot 8: Capping</span>
+                            <span>🔴 Slot 9: QC / Out</span>
                         </div>
 
                     </div>
 
 
-                    <!-- GPIO -->
+                    <!-- GPIO DIGITAL TWIN -->
                     <div class="panel">
 
                         <div class="panel-title">
-                            <h3>▦ Panel GPIO</h3>
+                            <h3>▦ Panel GPIO & Driver Mesin</h3>
                             <span class="gpio-badge">Opto-Isolated</span>
                         </div>
 
                         <p class="gpio-description">
-                            Status real-time sensor optik, limit switch,
-                            dan driver stepper PLC.
+                            Status real-time sensor optik, limit switch, pompa, dan driver stepper.
                         </p>
 
                         <div class="gpio-grid">
@@ -380,7 +447,7 @@
 
                         <div class="gpio-footer">
                             ⚡ Sinyal Bus:
-                            <b id="busVoltage">-- V DC</b>
+                            <b id="busVoltage">24 V DC</b>
 
                             <span>
                                 Latensi: <b id="apiLatency">--</b>
@@ -392,11 +459,11 @@
                 </div>
 
 
-                <!-- TIMELINE -->
+                <!-- TIMELINE STATUS MESIN -->
                 <div class="panel timeline-panel">
 
                     <div class="panel-title">
-                        <h3>◷ Timeline Status Mesin</h3>
+                        <h3>◷ Timeline Status Mesin & Durasi Mode</h3>
 
                         <span id="totalDowntime">
                             Total Downtime: --
@@ -412,7 +479,7 @@
                     <div class="timeline-legend">
                         <span id="shiftStart">--:--</span>
                         <span id="runningPercentage">🟢 Berjalan (--%)</span>
-                        <span id="warningPercentage">🟠 Peringatan (--%)</span>
+                        <span id="warningPercentage">🟠 Peringatan / Starving (--%)</span>
                         <span id="downtimePercentage">🔴 Downtime (--%)</span>
                         <span id="shiftEnd">--:--</span>
                     </div>
@@ -420,14 +487,14 @@
                 </div>
 
 
-                <!-- EVENT DAN TRACEABILITY -->
+                <!-- EVENT & BOTOL STREAM -->
                 <div class="bottom-grid">
 
-                    <!-- EVENT -->
+                    <!-- EVENT STREAM -->
                     <div class="panel">
 
                         <div class="panel-title">
-                            <h3>▤ Event Terbaru</h3>
+                            <h3>▤ Log Event & Alarm Mesin</h3>
                             <span>Real-time Stream</span>
                         </div>
 
@@ -437,9 +504,9 @@
                                 <thead>
                                     <tr>
                                         <th>WAKTU</th>
-                                        <th>TIPE EVENT</th>
-                                        <th>SUMBER</th>
-                                        <th>DESKRIPSI</th>
+                                        <th>JENIS EVENT</th>
+                                        <th>KATEGORI</th>
+                                        <th>KETERANGAN</th>
                                     </tr>
                                 </thead>
 
@@ -462,12 +529,12 @@
                     </div>
 
 
-                    <!-- TRACEABILITY LIVE -->
+                    <!-- TRACEABILITY STREAM -->
                     <div class="panel">
 
                         <div class="panel-title">
-                            <h3>▦ Traceability Botol (Real-time)</h3>
-                            <span class="pitch" id="batchNumber">Batch: --</span>
+                            <h3>▦ Unit Botol Terbaru (Live Stream)</h3>
+                            <span class="pitch" id="batchNumber">Sesi: --</span>
                         </div>
 
                         <input type="text" id="bottleSearch" class="search-input" placeholder="Cari nomor botol...">
@@ -479,9 +546,9 @@
                                     <tr>
                                         <th>NO. BOTOL</th>
                                         <th>SLOT</th>
-                                        <th>VOLUME</th>
-                                        <th>STATUS</th>
-                                        <th>DURASI</th>
+                                        <th>LEVEL ISI</th>
+                                        <th>STATUS QC</th>
+                                        <th>MLT UNIT</th>
                                     </tr>
                                 </thead>
 
@@ -503,7 +570,7 @@
                             </span>
 
                             <span style="font-size:11px">
-                                Sumber: MongoDB
+                                Sumber: REST API
                             </span>
                         </div>
 
@@ -515,13 +582,13 @@
 
 
             <!-- ===================================
-             HALAMAN PRODUKSI
-        ==================================== -->
+                 HALAMAN PRODUKSI & OEE
+            ==================================== -->
             <section class="page" id="page-produksi">
 
                 <div class="page-heading">
-                    <h2>Monitoring Produksi</h2>
-                    <p>Informasi pencapaian produksi mesin MPB-01.</p>
+                    <h2>Monitoring Produksi, OEE & Kapasitas</h2>
+                    <p>Kalkulasi OEE, WIP Real-time, Cycle Time, dan Manufacturing Lead Time (MLT).</p>
                 </div>
 
                 <div class="stats-grid">
@@ -529,98 +596,402 @@
                     <div class="stat-card">
                         <div class="stat-label">TOTAL PRODUKSI</div>
                         <h1><span id="prodTotal">--</span> <small>botol</small></h1>
+                        <div class="stat-footer">
+                            <span>Target: <b id="prodTarget">--</b> botol</span>
+                            <span>Pencapaian: <b id="prodPercentage">--%</b></span>
+                        </div>
                     </div>
 
                     <div class="stat-card">
-                        <div class="stat-label">TARGET PRODUKSI</div>
-                        <h1><span id="prodTarget">--</span> <small>botol</small></h1>
+                        <div class="stat-label">OUTPUT TERKEMAS (FG)</div>
+                        <h1><span id="prodPacked">--</span> <small>botol</small></h1>
+                        <div class="stat-footer">
+                            <span class="positive" id="prodBoxesFinished">-- Kardus Jadi</span>
+                            <span>Sisa Target: <b id="prodRemaining">--</b></span>
+                        </div>
                     </div>
 
                     <div class="stat-card">
-                        <div class="stat-label">SISA TARGET</div>
-                        <h1><span id="prodRemaining">--</span> <small>botol</small></h1>
+                        <div class="stat-label">CYCLE TIME (DETIK/BOTOL)</div>
+                        <h1><span id="prodActualCycle">--</span> <small>s</small></h1>
+                        <div class="stat-footer">
+                            <span>Ideal: <b>4.1 s</b></span>
+                            <span id="prodCycleDiff">Deviasi: --</span>
+                        </div>
                     </div>
 
                     <div class="stat-card">
-                        <div class="stat-label">PENCAPAIAN</div>
-                        <h1 id="prodPercentage">--%</h1>
+                        <div class="stat-label">KAPASITAS PRODUKSI</div>
+                        <h1><span id="prodEffectiveCapacity">--</span> <small>bph</small></h1>
+                        <div class="stat-footer">
+                            <span>Teoritis: <b>878 bph</b></span>
+                            <span id="prodCapacityUtil">Utilisasi: --%</span>
+                        </div>
                     </div>
 
                 </div>
 
-                <div class="panel content-panel">
-                    <h3>Progress Produksi</h3>
 
-                    <div class="large-progress">
-                        <div id="prodProgress" style="width:0%"></div>
+                <!-- OEE BREAKDOWN & SIX BIG LOSSES -->
+                <div class="panel content-panel">
+
+                    <h3>◉ Overall Equipment Effectiveness (OEE) & Six Big Losses</h3>
+                    <p style="margin-bottom:14px;color:var(--muted)">
+                        Rumus: OEE = Availability × Performance × Quality (Berdasarkan waktu siklus ideal 4.1 detik dan data sesi aktif).
+                    </p>
+
+                    <div class="oee-grid">
+
+                        <div class="oee-card primary">
+                            <h4>OEE Overall</h4>
+                            <h2 id="oeeScore">--%</h2>
+                            <p id="oeeScoreBadge">World Class: 85%</p>
+                        </div>
+
+                        <div class="oee-card">
+                            <h4>Availability</h4>
+                            <h2 id="oeeAvailability">--%</h2>
+                            <p>Operating / Planned Time</p>
+                        </div>
+
+                        <div class="oee-card">
+                            <h4>Performance</h4>
+                            <h2 id="oeePerformance">--%</h2>
+                            <p>(Ideal CT × Output) / Operating</p>
+                        </div>
+
+                        <div class="oee-card">
+                            <h4>Quality</h4>
+                            <h2 id="oeeQuality">--%</h2>
+                            <p>Good Output / Total Output</p>
+                        </div>
+
                     </div>
 
-                    <p id="prodDescription">
-                        Menunggu data ringkasan produksi dari API.
-                    </p>
+                    <!-- WAKTU & LOSSES -->
+                    <div class="panel-title" style="margin-top:20px">
+                        <h4>Rincian Komponen Waktu Kumulatif (Detik)</h4>
+                    </div>
+
+                    <div class="spc-grid">
+                        <div class="spc-stat">
+                            <small>Planned Prod Time</small>
+                            <strong id="timePlanned">-- s</strong>
+                        </div>
+                        <div class="spc-stat">
+                            <small>Operating Time (Aktif)</small>
+                            <strong id="timeOperating" style="color:var(--green)">-- s</strong>
+                        </div>
+                        <div class="spc-stat">
+                            <small>Setup Time</small>
+                            <strong id="timeSetup">-- s</strong>
+                        </div>
+                        <div class="spc-stat">
+                            <small>Starvation (Idling)</small>
+                            <strong id="timeStarvation">-- s</strong>
+                        </div>
+                        <div class="spc-stat">
+                            <small>Packaging Time</small>
+                            <strong id="timePackaging">-- s</strong>
+                        </div>
+                        <div class="spc-stat">
+                            <small>Unplanned Downtime</small>
+                            <strong id="timeDowntime" style="color:var(--red)">-- s</strong>
+                        </div>
+                    </div>
+
+                    <!-- SIX BIG LOSSES -->
+                    <div class="panel-title" style="margin-top:20px">
+                        <h4>Analisis Six Big Losses</h4>
+                    </div>
+
+                    <div class="losses-grid">
+                        <div class="loss-item">
+                            <div class="loss-item-label">
+                                <strong>Breakdown Loss</strong>
+                                <small>Waktu berhenti akibat E-Stop / Kerusakan</small>
+                            </div>
+                            <span class="loss-item-val" id="lossBreakdown">-- s</span>
+                        </div>
+
+                        <div class="loss-item">
+                            <div class="loss-item-label">
+                                <strong>Setup Loss</strong>
+                                <small>Waktu persiapan & pengambilan peti di rak</small>
+                            </div>
+                            <span class="loss-item-val" id="lossSetup">-- s</span>
+                        </div>
+
+                        <div class="loss-item">
+                            <div class="loss-item-label">
+                                <strong>Starving & Packaging Wait</strong>
+                                <small>Menunggu botol infeed atau kardus staging</small>
+                            </div>
+                            <span class="loss-item-val" id="lossStarvingPackaging">-- s</span>
+                        </div>
+
+                        <div class="loss-item">
+                            <div class="loss-item-label">
+                                <strong>Speed Loss</strong>
+                                <small>Selisih siklus aktual vs ideal 4.1s</small>
+                            </div>
+                            <span class="loss-item-val" id="lossSpeed">-- s</span>
+                        </div>
+
+                        <div class="loss-item">
+                            <div class="loss-item-label">
+                                <strong>Quality Defect Loss</strong>
+                                <small>Waktu terbuang memproses botol reject</small>
+                            </div>
+                            <span class="loss-item-val" id="lossQuality">-- s</span>
+                        </div>
+                    </div>
+
                 </div>
 
+
+                <!-- LEAD TIME (MLT) PANEL -->
                 <div class="panel content-panel">
-                    <h3>Informasi Mesin</h3>
-                    <p id="productionMachineInfo">
-                        Data konfigurasi mesin akan ditampilkan di sini.
+
+                    <h3>⏱ Manufacturing Lead Time (MLT) & Station Cycle Time</h3>
+                    <p style="color:var(--muted);margin-bottom:14px">
+                        Pelacakan durasi perjalanan botol dalam mesin dari infeed sampai keluar ke kotak penampung.
                     </p>
+
+                    <div class="spc-grid">
+                        <div class="spc-stat">
+                            <small>Rata-rata MLT per Unit Botol</small>
+                            <strong id="mltUnitAvg">-- s</strong>
+                        </div>
+                        <div class="spc-stat">
+                            <small>Durasi Pengisian Cairan (Pump)</small>
+                            <strong id="mltFillingAvg">-- s</strong>
+                        </div>
+                        <div class="spc-stat">
+                            <small>Batch MLT (Cycle Time Batch)</small>
+                            <strong id="mltBatchAvg">-- s</strong>
+                        </div>
+                        <div class="spc-stat">
+                            <small>Total Botol Dianalisis</small>
+                            <strong id="mltBottlesCount">-- botol</strong>
+                        </div>
+                    </div>
+
+                </div>
+
+
+                <!-- ARSIP HISTORI BATCH -->
+                <div class="panel content-panel">
+
+                    <h3>▦ Arsip Histori KPI Per Batch</h3>
+                    <p style="color:var(--muted);margin-bottom:12px">
+                        Rekam jejak permanen OEE dan Lead Time setiap batch produksi yang telah selesai dikemas.
+                    </p>
+
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>BATCH #</th>
+                                    <th>WAKTU SELESAI</th>
+                                    <th>TARGET / OUTPUT</th>
+                                    <th>OK / REJECT</th>
+                                    <th>OEE</th>
+                                    <th>AVAILABILITY</th>
+                                    <th>PERFORMANCE</th>
+                                    <th>QUALITY</th>
+                                    <th>BATCH MLT</th>
+                                    <th>KAPASITAS EFEKTIF</th>
+                                </tr>
+                            </thead>
+                            <tbody id="batchHistoryTable">
+                                <tr>
+                                    <td colspan="10" style="text-align:center">
+                                        Memuat arsip batch dari API...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
                 </div>
 
             </section>
 
 
             <!-- ===================================
-             HALAMAN KUALITAS
-        ==================================== -->
+                 HALAMAN KUALITAS & SPC
+            ==================================== -->
             <section class="page" id="page-kualitas">
 
                 <div class="page-heading">
-                    <h2>Monitoring Kualitas</h2>
-                    <p>Pemantauan hasil pemeriksaan kualitas botol.</p>
+                    <h2>Quality Control & SPC Mutu</h2>
+                    <p>First Pass Yield, Diagram Pareto Cacat Produk, dan Statistik Kendali Mutu (SPC) Level Isi.</p>
                 </div>
 
                 <div class="stats-grid">
 
                     <div class="stat-card">
-                        <div class="stat-label">YIELD KUALITAS</div>
+                        <div class="stat-label">FIRST PASS YIELD (FPY)</div>
                         <h1 id="qualityPageYield">--%</h1>
+                        <div class="stat-footer">
+                            <span id="qualityFpyStatus">Standar: ≥ 90%</span>
+                        </div>
                     </div>
 
                     <div class="stat-card">
-                        <div class="stat-label">BOTOL OK</div>
-                        <h1 id="qualityGood">--</h1>
+                        <div class="stat-label">BOTOL OK (LULUS QC)</div>
+                        <h1 class="positive" id="qualityGood">--</h1>
+                        <div class="stat-footer">
+                            <span id="qualityGoodPct">--% dari total</span>
+                        </div>
                     </div>
 
                     <div class="stat-card">
-                        <div class="stat-label">BOTOL REJECT</div>
+                        <div class="stat-label">BOTOL REJECT (CACAT)</div>
                         <h1 class="danger" id="qualityReject">--</h1>
+                        <div class="stat-footer">
+                            <span id="qualityRejectPct">--% cacat</span>
+                        </div>
                     </div>
 
                     <div class="stat-card">
-                        <div class="stat-label">TOLERANSI</div>
-                        <h1 id="qualityTolerance">--</h1>
+                        <div class="stat-label">TOTAL KONSUMSI CAIRAN</div>
+                        <h1><span id="qualityTotalLiquid">--</span> <small>Liter</small></h1>
+                        <div class="stat-footer">
+                            <span>Estimasi Cairan Terisi</span>
+                        </div>
                     </div>
 
                 </div>
 
+
+                <!-- PARETO DEFECT & SPC LEVEL ISI -->
+                <div class="machine-grid">
+
+                    <!-- PARETO CACAT -->
+                    <div class="panel">
+
+                        <div class="panel-title">
+                            <h3>📊 Diagram Pareto Cacat (Defect)</h3>
+                            <span class="pitch">Klasifikasi Reject</span>
+                        </div>
+
+                        <p style="color:var(--muted);font-size:12px;margin-bottom:16px">
+                            Rincian jenis cacat yang terdeteksi di stasiun inspeksi QC turret.
+                        </p>
+
+                        <div class="wip-station" style="margin-bottom:12px">
+                            <div class="wip-station-header">
+                                <b>1. Isi Kurang (TIDAK_PENUH)</b>
+                                <span class="pill danger" id="paretoUnderfillCount">0 unit</span>
+                            </div>
+                            <div class="progress">
+                                <div id="paretoUnderfillProgress" style="width:0%;background:var(--red)"></div>
+                            </div>
+                            <small id="paretoUnderfillPct" style="display:block;margin-top:6px;color:var(--muted)">0% dari total reject</small>
+                        </div>
+
+                        <div class="wip-station">
+                            <div class="wip-station-header">
+                                <b>2. Tanpa Tutup (TANPA_TUTUP)</b>
+                                <span class="pill warning" id="paretoNoCapCount">0 unit</span>
+                            </div>
+                            <div class="progress brown">
+                                <div id="paretoNoCapProgress" style="width:0%"></div>
+                            </div>
+                            <small id="paretoNoCapPct" style="display:block;margin-top:6px;color:var(--muted)">0% dari total reject</small>
+                        </div>
+
+                    </div>
+
+
+                    <!-- STATISTIK SPC KENDALI MUTU LEVEL ISI -->
+                    <div class="panel">
+
+                        <div class="panel-title">
+                            <h3>📈 Statistik SPC Level Pengisian Cairan</h3>
+                            <span class="pitch">Batas Lulus: ≥ 0.85 (85%)</span>
+                        </div>
+
+                        <p style="color:var(--muted);font-size:12px;margin-bottom:16px">
+                            Batas Kendali Statistik (Statistical Process Control) volume air per botol (0.00 – 1.00).
+                        </p>
+
+                        <div class="spc-grid">
+                            <div class="spc-stat">
+                                <small>Rata-rata (Mean)</small>
+                                <strong id="spcMean">--</strong>
+                            </div>
+                            <div class="spc-stat">
+                                <small>Standar Deviasi (σ)</small>
+                                <strong id="spcStd">--</strong>
+                            </div>
+                            <div class="spc-stat">
+                                <small>Rentang (Min – Max)</small>
+                                <strong id="spcRange">--</strong>
+                            </div>
+                            <div class="spc-stat">
+                                <small>Batas Atas (UCL)</small>
+                                <strong id="spcUcl" style="color:var(--green)">--</strong>
+                            </div>
+                            <div class="spc-stat">
+                                <small>Batas Bawah (LCL)</small>
+                                <strong id="spcLcl" style="color:var(--red)">--</strong>
+                            </div>
+                            <div class="spc-stat">
+                                <small>Di Bawah Batas QC</small>
+                                <strong id="spcBelowSpec" class="danger">-- unit</strong>
+                            </div>
+                        </div>
+
+                        <div class="turret-info" style="margin-top:10px">
+                            Batas Spesifikasi: Min <b>0.85</b> | Target <b>1.00</b> | Max <b>1.05</b>
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <!-- AUDIT CACAT PER SLOT TURRET (0..9) -->
                 <div class="panel content-panel">
-                    <h3>Hasil Pemeriksaan Botol</h3>
+
+                    <h3>◉ Audit Defect Per Slot Turret (0 – 9)</h3>
+                    <p style="color:var(--muted);margin-bottom:12px">
+                        Mendeteksi slot turret tertentu yang sering menghasilkan botol cacat (masalah mekanis/nozzle stasiun).
+                    </p>
+
+                    <div class="slot-audit-grid" id="slotAuditGrid">
+                        <!-- Disusun secara dinamis lewat script.js untuk slot 0-9 -->
+                    </div>
+
+                </div>
+
+
+                <!-- TABEL HASIL PEMERIKSAAN KUALITAS -->
+                <div class="panel content-panel">
+
+                    <h3>Hasil Pemeriksaan Inspeksi QC Botol</h3>
 
                     <div class="table-wrap">
                         <table>
                             <thead>
                                 <tr>
                                     <th>NO. BOTOL</th>
-                                    <th>VOLUME</th>
-                                    <th>STATUS</th>
-                                    <th>DURASI</th>
+                                    <th>SLOT</th>
+                                    <th>LEVEL ISI</th>
+                                    <th>TUTUP</th>
+                                    <th>STATUS QC</th>
+                                    <th>DURASI ISI</th>
+                                    <th>UNIT MLT</th>
+                                    <th>WAKTU KELUAR</th>
                                 </tr>
                             </thead>
 
                             <tbody id="qualityTable">
                                 <tr>
-                                    <td colspan="4" style="text-align:center">
+                                    <td colspan="8" style="text-align:center">
                                         Menunggu data kualitas dari API...
                                     </td>
                                 </tr>
@@ -634,57 +1005,127 @@
 
 
             <!-- ===================================
-             HALAMAN DOWNTIME
-        ==================================== -->
+                 HALAMAN DOWNTIME & RELIABILITAS
+            ==================================== -->
             <section class="page" id="page-downtime">
 
                 <div class="page-heading">
-                    <h2>Monitoring Downtime</h2>
-                    <p>Riwayat waktu berhenti dan kondisi mesin.</p>
+                    <h2>Downtime & Reliabilitas Mesin</h2>
+                    <p>Klasifikasi Gangguan, Mean Time Between Failures (MTBF), Mean Time to Repair (MTTR), dan Log Alarm.</p>
                 </div>
 
                 <div class="stats-grid">
 
                     <div class="stat-card">
-                        <div class="stat-label">TOTAL DOWNTIME</div>
-                        <h1 id="downtimeTotal">--</h1>
+                        <div class="stat-label">TOTAL DOWNTIME (UNPLANNED)</div>
+                        <h1 class="danger" id="downtimeTotal">--</h1>
+                        <div class="stat-footer">
+                            <span id="downtimeRate">Rasio Downtime: --%</span>
+                        </div>
                     </div>
 
                     <div class="stat-card">
-                        <div class="stat-label">MTBF</div>
+                        <div class="stat-label">MTBF (MEAN TIME BETWEEN FAILURES)</div>
                         <h1 id="downtimeMTBF">--</h1>
+                        <div class="stat-footer">
+                            <span>Waktu Operasi / Jumlah Gangguan</span>
+                        </div>
                     </div>
 
                     <div class="stat-card">
-                        <div class="stat-label">STATUS MESIN</div>
-                        <h1 id="downtimeMachineStatus">--</h1>
+                        <div class="stat-label">MTTR (MEAN TIME TO REPAIR)</div>
+                        <h1 id="downtimeMTTR">--</h1>
+                        <div class="stat-footer">
+                            <span>Rata-rata Waktu Perbaikan</span>
+                        </div>
                     </div>
 
                     <div class="stat-card">
-                        <div class="stat-label">DOWNTIME</div>
-                        <h1 id="downtimeRate">--%</h1>
+                        <div class="stat-label">FREKUENSI BREAKDOWN</div>
+                        <h1 id="downtimeBreakdownCount">--</h1>
+                        <div class="stat-footer">
+                            <span id="downtimeMachineStatus">Status: --</span>
+                        </div>
                     </div>
 
                 </div>
 
+
+                <!-- KLASIFIKASI DOWNTIME STANDAR MES -->
                 <div class="panel content-panel">
 
-                    <h3>Riwayat Event Mesin</h3>
+                    <h3>Kategori Standar Downtime & Penyebab Gangguan</h3>
+                    <p style="color:var(--muted);margin-bottom:14px">
+                        Klasifikasi downtime untuk pareto gangguan sistem pengisian botol.
+                    </p>
+
+                    <div class="losses-grid">
+
+                        <div class="loss-item">
+                            <div class="loss-item-label">
+                                <strong>UNPLANNED_BREAKDOWN</strong>
+                                <small>E-Stop ditekan / Gangguan mekanik tak terduga</small>
+                            </div>
+                            <span class="loss-item-val" id="catBreakdown">-- s</span>
+                        </div>
+
+                        <div class="loss-item">
+                            <div class="loss-item-label">
+                                <strong>PLANNED_SETUP</strong>
+                                <small>Persiapan awal batch / Pengambilan peti rak</small>
+                            </div>
+                            <span class="loss-item-val" id="catSetup" style="color:var(--navy)">-- s</span>
+                        </div>
+
+                        <div class="loss-item">
+                            <div class="loss-item-label">
+                                <strong>BLOCKED_FULL_BIN</strong>
+                                <small>Kotak OK atau Wadah Reject penuh (Menunggu operator)</small>
+                            </div>
+                            <span class="loss-item-val" id="catBlockedBin" style="color:var(--orange)">-- s</span>
+                        </div>
+
+                        <div class="loss-item">
+                            <div class="loss-item-label">
+                                <strong>STARVATION (IDLING)</strong>
+                                <small>Turret menunggu botol kosong di meja infeed</small>
+                            </div>
+                            <span class="loss-item-val" id="catStarvation" style="color:var(--orange)">-- s</span>
+                        </div>
+
+                        <div class="loss-item">
+                            <div class="loss-item-label">
+                                <strong>PACKAGING_WAIT</strong>
+                                <small>Proses packing botol ke kardus & meletakkan ke palet</small>
+                            </div>
+                            <span class="loss-item-val" id="catPackaging" style="color:var(--navy)">-- s</span>
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <!-- RIWAYAT EVENT DOWNTIME -->
+                <div class="panel content-panel">
+
+                    <h3>Riwayat Event & Alarm Mesin</h3>
 
                     <div class="table-wrap">
                         <table>
                             <thead>
                                 <tr>
                                     <th>WAKTU</th>
-                                    <th>EVENT</th>
+                                    <th>JENIS EVENT</th>
                                     <th>SUMBER</th>
-                                    <th>DESKRIPSI</th>
+                                    <th>KATEGORI DOWNTIME</th>
+                                    <th>TRANSISI MODE / KETERANGAN</th>
                                 </tr>
                             </thead>
 
                             <tbody id="downtimeTable">
                                 <tr>
-                                    <td colspan="4" style="text-align:center">
+                                    <td colspan="5" style="text-align:center">
                                         Menunggu riwayat event dari API...
                                     </td>
                                 </tr>
@@ -698,21 +1139,161 @@
 
 
             <!-- ===================================
-             HALAMAN TRACEABILITY
-        ==================================== -->
-            <section class="page" id="page-traceability">
+                 HALAMAN INVENTORI & MATERIAL
+            ==================================== -->
+            <section class="page" id="page-inventori">
 
                 <div class="page-heading">
-                    <h2>Traceability Botol</h2>
-                    <p>Pencarian informasi dan riwayat produksi botol.</p>
+                    <h2>Inventori & Pelacakan Material</h2>
+                    <p>Pemantauan Sisa Stok Rak Atas, Botol, Tutup, Konsumsi Cairan, dan Auto Replenish.</p>
+                </div>
+
+                <div class="stats-grid">
+
+                    <div class="stat-card">
+                        <div class="stat-label">SISA STOK RAK ATAS</div>
+                        <h1><span id="invRackRemaining">--</span> <small>/ <span id="invRackCapacity">--</span> peti</small></h1>
+                        <div class="stat-footer">
+                            <span id="invRackPercentage">--% Kapasitas</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-label">SISA PETI INFEED</div>
+                        <h1><span id="invInfeedRemaining">--</span> <small>/ 30 botol</small></h1>
+                        <div class="stat-footer">
+                            <span>Meja Infeed Aktif</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-label">AUTO REPLENISH RAK</div>
+                        <h1><span id="invAutoReplenishCount">--</span> <small>kali</small></h1>
+                        <div class="stat-footer">
+                            <span>Pengisian Otomatis</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-label">RESTOCK MANUAL</div>
+                        <h1><span id="invRestockCount">--</span> <small>kali</small></h1>
+                        <div class="stat-footer">
+                            <span id="invRestockStatusBadge" class="pill ok">Stok Cukup</span>
+                        </div>
+                    </div>
+
                 </div>
 
                 <div class="panel content-panel">
 
-                    <h3>Pencarian Botol</h3>
+                    <h3>Status Material Bahan Baku Sesi Ini</h3>
+
+                    <div class="wip-flow">
+
+                        <div class="wip-station">
+                            <div class="wip-station-header">
+                                <b>Botol Kosong Terpakai</b>
+                                <span class="pill info">Bahan Baku</span>
+                            </div>
+                            <h3><span id="invBottlesUsed">--</span> <small>botol</small></h3>
+                            <small style="color:var(--muted)">Dari Peti Meja Infeed</small>
+                        </div>
+
+                        <div class="wip-station">
+                            <div class="wip-station-header">
+                                <b>Tutup Botol Terpasang</b>
+                                <span class="pill ok">Capping</span>
+                            </div>
+                            <h3><span id="invCapsUsed">--</span> <small>tutup</small></h3>
+                            <small style="color:var(--muted)">Stasiun Capping</small>
+                        </div>
+
+                        <div class="wip-station">
+                            <div class="wip-station-header">
+                                <b>Konsumsi Cairan Air</b>
+                                <span class="pill info">Volume</span>
+                            </div>
+                            <h3><span id="invLiquidUsed">--</span> <small>Liter</small></h3>
+                            <small style="color:var(--muted)">Total isi botol (Level × Kapasitas)</small>
+                        </div>
+
+                        <div class="wip-station">
+                            <div class="wip-station-header">
+                                <b>Status Level Rak Atas</b>
+                                <span class="pill" id="invRackAlertPill">Normal</span>
+                            </div>
+                            <h3><span id="invRackBarVal">--%</span></h3>
+                            <div class="progress">
+                                <div id="invRackProgress" style="width:0%"></div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </section>
+
+
+            <!-- ===================================
+                 HALAMAN TRACEABILITY
+            ==================================== -->
+            <section class="page" id="page-traceability">
+
+                <div class="page-heading">
+                    <h2>Unit Traceability Botol</h2>
+                    <p>Pencarian detail botol berdasarkan nomor urut (inspeksi fisik, level isi, capping, dan unit MLT).</p>
+                </div>
+
+                <div class="panel content-panel">
+
+                    <h3>Pencarian Botol Spesifik</h3>
 
                     <input type="text" id="traceSearch" class="search-input"
-                        placeholder="Masukkan nomor botol, contoh #00117">
+                        placeholder="Masukkan nomor botol, contoh #00014 atau 14">
+
+                    <!-- DETAIL KARTU JIKA BOTOL DITEMUKAN -->
+                    <div class="bottle-detail-card" id="bottleDetailCard" style="display:none;">
+                        <div class="panel-title">
+                            <h3 id="cardBottleNo">Botol #00000</h3>
+                            <span class="pill ok" id="cardBottleStatus">OK</span>
+                        </div>
+
+                        <div class="detail-row-grid">
+                            <div class="detail-item">
+                                <small>Slot Turret</small>
+                                <strong id="cardSlot">--</strong>
+                            </div>
+                            <div class="detail-item">
+                                <small>Level Isi Cairan</small>
+                                <strong id="cardFill">--%</strong>
+                            </div>
+                            <div class="detail-item">
+                                <small>Status Capping</small>
+                                <strong id="cardCapping">--</strong>
+                            </div>
+                            <div class="detail-item">
+                                <small>Durasi Pengisian</small>
+                                <strong id="cardFillingDuration">-- s</strong>
+                            </div>
+                            <div class="detail-item">
+                                <small>Unit MLT (Infeed → Out)</small>
+                                <strong id="cardUnitMlt">-- s</strong>
+                            </div>
+                            <div class="detail-item">
+                                <small>Nomor Batch</small>
+                                <strong id="cardBatch">--</strong>
+                            </div>
+                            <div class="detail-item">
+                                <small>Waktu Masuk</small>
+                                <strong id="cardTimeIn">--</strong>
+                            </div>
+                            <div class="detail-item">
+                                <small>Waktu Keluar</small>
+                                <strong id="cardTimeOut">--</strong>
+                            </div>
+                        </div>
+                    </div>
 
                     <div class="table-wrap">
 
@@ -721,15 +1302,18 @@
                                 <tr>
                                     <th>NO. BOTOL</th>
                                     <th>SLOT</th>
-                                    <th>VOLUME</th>
-                                    <th>STATUS</th>
-                                    <th>DURASI</th>
+                                    <th>LEVEL ISI</th>
+                                    <th>TUTUP</th>
+                                    <th>STATUS QC</th>
+                                    <th>DURASI ISI</th>
+                                    <th>UNIT MLT</th>
+                                    <th>WAKTU KELUAR</th>
                                 </tr>
                             </thead>
 
                             <tbody id="traceTable">
                                 <tr>
-                                    <td colspan="5" style="text-align:center">
+                                    <td colspan="8" style="text-align:center">
                                         Menunggu data botol dari API...
                                     </td>
                                 </tr>
@@ -740,7 +1324,7 @@
                     </div>
 
                     <p id="traceInfo" style="font-size:11px;margin-top:12px">
-                        Data traceability berasal dari database.
+                        Data traceability berasal dari database REST API.
                     </p>
 
                 </div>
@@ -749,34 +1333,34 @@
 
 
             <!-- ===================================
-             HALAMAN LAPORAN
-        ==================================== -->
+                 HALAMAN LAPORAN
+            ==================================== -->
             <section class="page" id="page-laporan">
 
                 <div class="page-heading">
-                    <h2>Laporan Produksi</h2>
-                    <p>Ringkasan hasil produksi mesin MPB-01.</p>
+                    <h2>Laporan Produksi & KPI Mesin</h2>
+                    <p>Ringkasan komprehensif OEE, Six Big Losses, Kualitas SPC, Downtime, dan Inventori Mesin MPB-01.</p>
                 </div>
 
                 <div class="stats-grid">
 
                     <div class="stat-card">
-                        <div class="stat-label">PRODUKSI</div>
+                        <div class="stat-label">OEE SESI</div>
+                        <h1 id="reportOee">--%</h1>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-label">PRODUKSI SELESAI</div>
                         <h1 id="reportProduction">--</h1>
                     </div>
 
                     <div class="stat-card">
-                        <div class="stat-label">KUALITAS</div>
+                        <div class="stat-label">YIELD KUALITAS</div>
                         <h1 id="reportQuality">--%</h1>
                     </div>
 
                     <div class="stat-card">
-                        <div class="stat-label">REJECT</div>
-                        <h1 id="reportReject">--</h1>
-                    </div>
-
-                    <div class="stat-card">
-                        <div class="stat-label">DOWNTIME</div>
+                        <div class="stat-label">TOTAL DOWNTIME</div>
                         <h1 id="reportDowntime">--</h1>
                     </div>
 
@@ -784,14 +1368,14 @@
 
                 <div class="panel content-panel">
 
-                    <h3>Ringkasan Produksi</h3>
+                    <h3>Ringkasan Laporan Resmi</h3>
 
                     <p id="reportDescription">
                         Menunggu data laporan dari API.
                     </p>
 
-                    <button class="action-button" onclick="window.print()">
-                        Cetak Laporan
+                    <button class="action-button" onclick="window.print()" style="margin-top:16px">
+                        🖨 Cetak Laporan MES
                     </button>
 
                 </div>
@@ -800,13 +1384,13 @@
 
 
             <!-- ===================================
-             HALAMAN PENGATURAN
-        ==================================== -->
+                 HALAMAN PENGATURAN
+            ==================================== -->
             <section class="page" id="page-pengaturan">
 
                 <div class="page-heading">
                     <h2>Pengaturan Sistem</h2>
-                    <p>Pengaturan tampilan dan koneksi dashboard.</p>
+                    <p>Pengaturan tema tampilan dan parameter koneksi REST API.</p>
                 </div>
 
                 <div class="panel content-panel">
@@ -826,8 +1410,8 @@
 
                     <div class="setting-row">
                         <div>
-                            <strong>Sidebar</strong>
-                            <p>Mengatur ukuran sidebar navigasi.</p>
+                            <strong>Sidebar Navigasi</strong>
+                            <p>Mengatur ukuran sidebar (collapse / expand).</p>
                         </div>
 
                         <button class="action-button" onclick="toggleSidebar()">
@@ -839,27 +1423,43 @@
 
                 <div class="panel content-panel">
 
-                    <h3>Status Koneksi</h3>
+                    <h3>Status & Parameter REST API</h3>
 
                     <div class="setting-row">
                         <div>
-                            <strong>REST API</strong>
-                            <p>Alamat koneksi backend mesin.</p>
+                            <strong>Endpoint Base URL</strong>
+                            <p id="apiSettingUrl">https://filling-machine-api.zamazzam.me</p>
                         </div>
                         <strong id="apiSettingStatus">Memeriksa...</strong>
                     </div>
 
                     <div class="setting-row">
                         <div>
-                            <strong>MongoDB</strong>
-                            <p>Status koneksi database melalui API.</p>
+                            <strong>Mesin ID</strong>
+                            <p>ID identitas mesin di API.</p>
+                        </div>
+                        <strong id="settingMachineId">mesin-01</strong>
+                    </div>
+
+                    <div class="setting-row">
+                        <div>
+                            <strong>Database Status</strong>
+                            <p>Koneksi MongoDB melalui API backend.</p>
                         </div>
                         <strong id="databaseSettingStatus">Memeriksa...</strong>
                     </div>
 
                     <div class="setting-row">
                         <div>
-                            <strong>Terakhir diperbarui</strong>
+                            <strong>Ideal Cycle Time</strong>
+                            <p>Spesifikasi mesin: 1.5s putar + 2.6s diam.</p>
+                        </div>
+                        <strong>4.1 Detik / Botol</strong>
+                    </div>
+
+                    <div class="setting-row">
+                        <div>
+                            <strong>Terakhir Diperbarui</strong>
                             <p>Waktu pengambilan data terakhir.</p>
                         </div>
                         <strong id="lastUpdated">--</strong>

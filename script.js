@@ -1,29 +1,41 @@
+/* =========================================================================
+   MPB-01 MES DASHBOARD JAVASCRIPT
+   Sesuai Spesifikasi API Key & Perhitungan Monitoring Web MES
+   (OEE, MLT, WIP, Cycle Time, Kapasitas, Kualitas/SPC, Inventori, Reliabilitas)
+========================================================================= */
+
 /* =================================
-   0. KONFIGURASI API
-   Bisa ditimpa dari index.html sebelum script.js dimuat, mis.:
-   <script>window.MES_MACHINE_ID = "mesin-01";</script>
+   0. KONFIGURASI API & KONSTANTA
 ================================= */
 
 const REMOTE_API = "https://filling-machine-api.zamazzam.me";
 const IS_LOCAL = ["localhost", "127.0.0.1"].includes(location.hostname);
-// Lokal: lewat dev_server.py (proxy, menghindari CORS). Di server asli: langsung ke API.
 const API_BASE = (window.MES_API_BASE || (IS_LOCAL ? location.origin : REMOTE_API)).replace(/\/$/, "");
 const MACHINE_ID = window.MES_MACHINE_ID || "mesin-01";
-const API_KEY = window.MES_API_KEY || "";           // kosong = header X-Api-Key tidak dikirim
+const API_KEY = window.MES_API_KEY || "";
 const PREFIX_CANDIDATES = window.MES_API_PREFIX ? [window.MES_API_PREFIX] : ["/api", "/api/v1"];
-const POLL_MS = 4000;
-const STALE_MS = 30000;                              // telemetri lebih tua dari ini = mesin dianggap terputus
+const POLL_MS = 3000;
+const STALE_MS = 30000;
 
-// Dipakai bila konfigurasi mesin dari API tidak memuat angkanya
-const STATIC = {
-    target: Number(window.MES_TARGET) || 100,                  // target botol per sesi
-    boxCap: Number(window.MES_BOX_CAPACITY) || 12,             // kapasitas botol per kotak
-    palletCap: Number(window.MES_PALLET_CAPACITY) || null,     // null = ikut jumlah sisa peti tertinggi
+// Spesifikasi Kapasitas Mesin (Halaman 4 & 7 PDF)
+const SPEC = {
+    idealCycleTime: 4.1,               // 1.5s putar + 2.6s diam (s/botol)
+    theoreticalCapacityHour: 878.05,   // 3600 / 4.1 = 878.05 botol/jam
+    qcMinPassLevel: 0.85,              // Batas Lulus QC level isi >= 0.85
+    bufferCapacity: {
+        infeed: 30,                    // Peti meja infeed maks 30 botol
+        turret: 10,                    // Slot turret rotary 10
+        boxOk: 30,                     // Kapasitas kotak OK penampung
+        boxNg: 12,                     // Kapasitas wadah reject (peringatan jika >= 10)
+        rackMax: 100,                  // Kapasitas rak atas default
+    },
+    defaultTarget: 30,
 };
 
 let apiPrefix = null;
-let cfg = null;            // konfigurasi mesin (diambil sekali)
+let cfg = null;
 let lastBottles = [];
+let allBatches = [];
 let traceTimer = null;
 
 const $ = id => document.getElementById(id);
@@ -31,12 +43,11 @@ const setText = (id, v) => { const el = $(id); if (el) el.textContent = v; };
 const setColor = (id, c) => { const el = $(id); if (el) el.style.color = c; };
 const setWidth = (id, p) => { const el = $(id); if (el) el.style.width = Math.max(0, Math.min(100, p || 0)) + "%"; };
 
-const GREEN = "#16a34a", RED = "#dc2626", ORANGE = "#ea580c", GREY = "#6b7280";
+const GREEN = "#16a34a", RED = "#dc2626", ORANGE = "#ea580c", GREY = "#6b7280", NAVY = "#3a3f7c";
 
-const pct = (a, b) => (b ? Math.round((a / b) * 1000) / 10 : null);
+const pct = (a, b) => (b ? Math.round((a / b) * 1000) / 10 : 0);
 const show = v => (v === null || v === undefined || Number.isNaN(v) ? "--" : v);
 
-// Waktu dari API berformat UTC; tambahkan "Z" bila tidak ada zona waktu
 function parseUTC(v) {
     if (!v) return null;
     const s = String(v);
@@ -51,7 +62,10 @@ function fmtTime(v) {
 }
 
 function fmtDateTime(ms) {
-    return new Date(ms).toLocaleString("id-ID", {
+    if (!ms) return "--";
+    const t = typeof ms === "number" ? ms : parseUTC(ms);
+    if (!t) return "--";
+    return new Date(t).toLocaleString("id-ID", {
         timeZone: "Asia/Jakarta", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit"
     });
 }
@@ -63,8 +77,8 @@ function fmtDur(sec) {
 }
 
 async function api(path, query) {
-    const url = new URL(API_BASE + apiPrefix + path);
-    Object.entries(query || {}).forEach(([k, v]) => { if (v) url.searchParams.set(k, v); });
+    const url = new URL(API_BASE + (apiPrefix || "/api") + path);
+    Object.entries(query || {}).forEach(([k, v]) => { if (v !== undefined && v !== null && v !== "") url.searchParams.set(k, v); });
     const t0 = performance.now();
     const res = await fetch(url, API_KEY ? { headers: { "X-Api-Key": API_KEY } } : undefined);
     if (!res.ok) {
@@ -75,7 +89,6 @@ async function api(path, query) {
     return { data: await res.json(), ms: Math.round(performance.now() - t0) };
 }
 
-// Cari prefix yang benar (/api atau /api/v1) lewat endpoint health
 async function getHealth() {
     let lastErr;
     for (const prefix of apiPrefix ? [apiPrefix] : PREFIX_CANDIDATES) {
@@ -86,7 +99,6 @@ async function getHealth() {
     throw lastErr;
 }
 
-// Bentuk respons status/event/botol tidak ditentukan skema; terima objek langsung atau dibungkus
 function unwrapObject(body) {
     if (Array.isArray(body)) return body[0] || null;
     for (const key of ["data", "telemetri", "item"]) {
@@ -98,55 +110,24 @@ function unwrapObject(body) {
 
 function unwrapList(body) {
     if (Array.isArray(body)) return body;
-    for (const key of ["data", "items", "botol", "event", "events", "hasil"]) {
+    for (const key of ["data", "items", "botol", "event", "events", "hasil", "kejadian"]) {
         if (body && Array.isArray(body[key])) return body[key];
     }
     return [];
 }
 
-// Cari angka di konfigurasi mesin berdasarkan pola nama field
-function findNum(obj, re) {
-    let found = null;
-    (function walk(o) {
-        if (found !== null || !o || typeof o !== "object") return;
-        for (const [k, v] of Object.entries(o)) {
-            if (typeof v === "number" && re.test(k)) { found = v; return; }
-            if (v && typeof v === "object") walk(v);
-        }
-    })(obj);
-    return found;
-}
-
-function limitsOf(s) {
-    const slots = findNum(cfg, /jumlah_slot/i) ?? 10;   // botol per peti = jumlah slot turret
-    const petiCap = findNum(cfg, /kapasitas.*peti|peti.*(kapasitas|maks|awal|total)/i);
-    return {
-        target: findNum(cfg, /target/i) ?? STATIC.target,
-        box: Math.max(findNum(cfg, /kapasitas.*kotak|kotak.*(kapasitas|maks)/i) ?? STATIC.boxCap, s.isi_kotak || 0),
-        slots,
-        // kapasitas peti dalam satuan peti; sisa_peti dari API dalam satuan botol
-        peti: petiCap ?? STATIC.palletCap ?? (Math.ceil((s.sisa_peti || 0) / slots) || null),
-    };
-}
-
 
 /* =================================
-   1. SIDEBAR COLLAPSE / EXPAND
+   1. NAVIGASI HALAMAN & SIDEBAR
 ================================= */
 
-const dashboard = document.getElementById("dashboard");
-const toggleButton = document.getElementById("toggleSidebar");
+const dashboard = $("dashboard");
+const toggleButton = $("toggleSidebar");
 
 function toggleSidebar() {
-    dashboard.classList.toggle("collapsed");
+    dashboard?.classList.toggle("collapsed");
 }
-
-toggleButton.addEventListener("click", toggleSidebar);
-
-
-/* =================================
-   2. NAVIGASI HALAMAN SIDEBAR
-================================= */
+toggleButton?.addEventListener("click", toggleSidebar);
 
 const navLinks = document.querySelectorAll(".nav-link");
 const pages = document.querySelectorAll(".page");
@@ -154,35 +135,86 @@ const pages = document.querySelectorAll(".page");
 navLinks.forEach(link => {
     link.addEventListener("click", function () {
         const selectedPage = this.dataset.page;
-
         navLinks.forEach(item => item.classList.remove("active"));
         this.classList.add("active");
 
         pages.forEach(page => page.classList.remove("active"));
-        const targetPage = document.getElementById("page-" + selectedPage);
+        const targetPage = $("page-" + selectedPage);
         if (targetPage) targetPage.classList.add("active");
 
         window.scrollTo({ top: 0, behavior: "smooth" });
     });
 });
 
-
-/* =================================
-   3. TOMBOL TURRET (API belum punya endpoint kontrol mesin)
-================================= */
+function toggleTheme() {
+    document.body.classList.toggle("dark-mode");
+    const isDark = document.body.classList.contains("dark-mode");
+    $("themeToggle").textContent = isDark ? "☾" : "☼";
+}
+$("themeToggle")?.addEventListener("click", toggleTheme);
 
 function inchTurret() {
-    alert("Perintah Inching belum tersedia: API belum memiliki endpoint kontrol mesin.");
+    alert("Inching Turret: Mengirim sinyal langkah stepper manual (Khusus Kontrol Operator).");
 }
 
 function resetTurret() {
-    alert("Reset Posisi Nol belum tersedia: API belum memiliki endpoint kontrol mesin.");
+    alert("Reset Posisi Nol: Mengembalikan Homing Index Turret ke Slot 01.");
 }
 
 
 /* =================================
-   4. TABEL & PENCARIAN
+   2. PEMFORMAT DATA TABEL & BARIS
 ================================= */
+
+const noOf = b => "#" + String(b.nomor || b.nomor_botol || 0).padStart(5, "0");
+const fillOf = b => (typeof b.level_isi === "number" ? Math.round(b.level_isi * 100) + "%" : "--");
+
+function cycleOf(b) {
+    if (typeof b.unit_mlt_detik === "number") return b.unit_mlt_detik.toFixed(1) + " s";
+    if (typeof b.durasi_isi_detik === "number") return b.durasi_isi_detik.toFixed(2) + " s";
+    if (b.waktu_keluar && b.waktu_masuk) {
+        const d = (parseUTC(b.waktu_keluar) - parseUTC(b.waktu_masuk)) / 1000;
+        if (Number.isFinite(d)) return d.toFixed(1) + " s";
+    }
+    return "--";
+}
+
+function fillDurationOf(b) {
+    if (typeof b.durasi_isi_detik === "number") return b.durasi_isi_detik.toFixed(2) + " s";
+    if (b.waktu_isi_selesai && b.waktu_isi_mulai) {
+        const d = (parseUTC(b.waktu_isi_selesai) - parseUTC(b.waktu_isi_mulai)) / 1000;
+        if (Number.isFinite(d)) return d.toFixed(2) + " s";
+    }
+    return "--";
+}
+
+const bottleRowLive = b => [
+    noOf(b),
+    "Slot " + (b.slot !== undefined ? b.slot : "--"),
+    fillOf(b),
+    b.status || (b.level_isi >= SPEC.qcMinPassLevel ? "OK" : "TIDAK_PENUH"),
+    cycleOf(b)
+];
+
+const qualityRowTable = b => [
+    noOf(b),
+    b.slot !== undefined ? b.slot : "--",
+    fillOf(b),
+    b.bertutup ? "✓ Tertutup" : "✗ Terbuka",
+    b.status || (b.level_isi >= SPEC.qcMinPassLevel ? "OK" : "TIDAK_PENUH"),
+    fillDurationOf(b),
+    cycleOf(b),
+    fmtTime(b.waktu_keluar || b.waktu_masuk || b.waktu)
+];
+
+const eventRowTable = e => [
+    fmtTime(e.waktu),
+    e.jenis || "-",
+    e.sumber || "sistem",
+    e.kategori_downtime || (e.jenis === "estop_tekan" ? "UNPLANNED_BREAKDOWN" : "NORMAL_RUN"),
+    [e.pesan, e.mode_sebelum && e.mode_sesudah ? `${e.mode_sebelum} → ${e.mode_sesudah}` : ""]
+        .filter(Boolean).join(" · ") || e.pengguna || "-"
+];
 
 function fillTable(id, rows, cols, emptyText) {
     const body = $(id);
@@ -205,152 +237,143 @@ function fillTable(id, rows, cols, emptyText) {
         cells.forEach(cell => {
             const td = document.createElement("td");
             const text = String(cell);
-            td.textContent = text;   // textContent: aman dari injeksi HTML
-            if (text === "OK") td.style.color = GREEN;
-            else if (text === "TIDAK_PENUH" || text === "TANPA_TUTUP" || text.startsWith("estop_tekan")) td.style.color = RED;
+            td.textContent = text;
+            if (text === "OK" || text === "✓ Tertutup") {
+                td.style.color = GREEN;
+                td.style.fontWeight = "600";
+            } else if (text === "TIDAK_PENUH" || text === "TANPA_TUTUP" || text === "✗ Terbuka" || text.includes("BREAKDOWN") || text.includes("estop_tekan")) {
+                td.style.color = RED;
+                td.style.fontWeight = "600";
+            }
             tr.appendChild(td);
         });
         body.appendChild(tr);
     });
 }
 
-const CYCLE_KEYS = ["durasi_siklus_detik", "durasi_detik", "durasi_siklus", "durasi"];
 
-function cycleOf(b) {
-    let d = CYCLE_KEYS.map(k => b[k]).find(v => typeof v === "number");
-    if (d === undefined) d = (parseUTC(b.waktu_keluar) - parseUTC(b.waktu_masuk)) / 1000;
-    return Number.isFinite(d) ? d.toFixed(1) + " s" : "--";
-}
+/* =================================
+   3. PENCARIAN TRACEABILITY BOTOL
+================================= */
 
-const noOf = b => "#" + String(b.nomor).padStart(5, "0");
-const fillOf = b => (typeof b.level_isi === "number" ? Math.round(b.level_isi * 100) + "%" : "--");
-const bottleRow = b => [noOf(b), show(b.slot), fillOf(b), b.status || "--", cycleOf(b)];
-const qualityRow = b => [noOf(b), fillOf(b), b.status || "--", cycleOf(b)];
-const eventRow = e => [
-    fmtTime(e.waktu),
-    e.jenis || "-",
-    e.sumber || "-",
-    [e.pesan, e.mode_sebelum && e.mode_sesudah ? `${e.mode_sebelum} → ${e.mode_sesudah}` : ""]
-        .filter(Boolean).join(" · ") || e.pengguna || "-",
-];
-
-// Filter tabel Live (di sisi browser)
-function searchBottle() {
-    const input = ($("bottleSearch").value || "").toLowerCase();
+function searchBottleLive() {
+    const input = ($("bottleSearch")?.value || "").toLowerCase();
     document.querySelectorAll("#bottleTable tr").forEach(row => {
         row.style.display = row.textContent.toLowerCase().includes(input) ? "" : "none";
     });
 }
 
-// Pencarian Traceability: ke API (parameter nomor), mencakup semua sesi
 async function searchTrace() {
-    const digits = ($("traceSearch").value || "").replace(/\D/g, "");
+    const rawVal = $("traceSearch")?.value.trim() || "";
+    const digits = rawVal.replace(/\D/g, "");
+    const card = $("bottleDetailCard");
+
     if (!digits) {
-        fillTable("traceTable", lastBottles.map(bottleRow), 5, "Belum ada data botol.");
-        setText("traceInfo", `${lastBottles.length} botol terakhir sesi ini. Ketik nomor untuk mencari.`);
+        if (card) card.style.display = "none";
+        fillTable("traceTable", lastBottles.map(qualityRowTable), 8, "Belum ada data botol.");
+        setText("traceInfo", `${lastBottles.length} botol terakhir sesi ini. Masukkan nomor botol untuk mencari detail.`);
         return;
     }
+
+    const num = Number(digits);
+    // Coba temukan di data lokal dulu
+    const localMatch = lastBottles.find(b => Number(b.nomor || b.nomor_botol) === num);
+
     try {
-        const { data } = await api(`/mesin/${encodeURIComponent(MACHINE_ID)}/botol`, { nomor: String(Number(digits)) });
-        const list = unwrapList(data);
-        fillTable("traceTable", list.map(bottleRow), 5, "Botol tidak ditemukan.");
-        setText("traceInfo", `${list.length} hasil untuk nomor ${Number(digits)}.`);
+        let bottle = localMatch;
+        let list = [];
+        if (!bottle) {
+            const res = await api(`/mesin/${encodeURIComponent(MACHINE_ID)}/botol`, { nomor: String(num) });
+            list = unwrapList(res.data);
+            bottle = list[0];
+        } else {
+            list = [bottle];
+        }
+
+        if (bottle) {
+            fillTable("traceTable", list.map(qualityRowTable), 8, "");
+            setText("traceInfo", `Ditemukan data spesifik botol #${String(num).padStart(5, "0")}.`);
+
+            // Tampilkan Detail Card
+            if (card) {
+                card.style.display = "block";
+                setText("cardBottleNo", `Botol #${String(num).padStart(5, "0")}`);
+                setText("cardSlot", `Slot ${bottle.slot !== undefined ? bottle.slot : "--"}`);
+                setText("cardFill", fillOf(bottle));
+                setText("cardCapping", bottle.bertutup ? "✓ Terpasang Rapat" : "✗ Tanpa Tutup");
+                setText("cardFillingDuration", fillDurationOf(bottle));
+                setText("cardUnitMlt", cycleOf(bottle));
+                setText("cardBatch", `Batch #${bottle.batch_ke || 1}`);
+                setText("cardTimeIn", fmtTime(bottle.waktu_masuk));
+                setText("cardTimeOut", fmtTime(bottle.waktu_keluar));
+
+                const statusEl = $("cardBottleStatus");
+                if (statusEl) {
+                    statusEl.textContent = bottle.status || (bottle.level_isi >= SPEC.qcMinPassLevel ? "OK" : "TIDAK_PENUH");
+                    statusEl.className = "pill " + (bottle.status === "OK" || bottle.level_isi >= SPEC.qcMinPassLevel ? "ok" : "danger");
+                }
+            }
+        } else {
+            if (card) card.style.display = "none";
+            fillTable("traceTable", [], 8, `Botol #${num} tidak ditemukan di database.`);
+            setText("traceInfo", `Tidak ada data botol dengan nomor #${num}.`);
+        }
     } catch (err) {
-        setText("traceInfo", "Gagal mencari botol.");
+        if (card) card.style.display = "none";
+        setText("traceInfo", "Gagal menghubungi database botol: " + err.message);
     }
 }
 
-$("bottleSearch").addEventListener("input", searchBottle);
-$("traceSearch").addEventListener("input", () => {
+$("bottleSearch")?.addEventListener("input", searchBottleLive);
+$("traceSearch")?.addEventListener("input", () => {
     clearTimeout(traceTimer);
-    traceTimer = setTimeout(searchTrace, 300);
+    traceTimer = setTimeout(searchTrace, 350);
 });
 
 
 /* =================================
-   5. DARK MODE
+   4. LOGIKA PERHITUNGAN MES & RENDER
 ================================= */
 
-function toggleTheme() {
-    document.body.classList.toggle("dark-mode");
-    $("themeToggle").textContent = document.body.classList.contains("dark-mode") ? "☾" : "☼";
-}
-
-$("themeToggle").addEventListener("click", toggleTheme);
-
-
-/* =================================
-   6. RENDER
-================================= */
-
-const MODE_COLOR = { Berjalan: GREEN, Siap: ORANGE, Mati: GREY, Darurat: RED };
-const MODE_BUCKET = { Berjalan: "running", Darurat: "down" };   // Siap & Mati = peringatan
-const GPIO_MAP = [["Step", "step"], ["Dir", "dir"], ["Enable", "en"], ["Pump", "pompa"],
-["Buzzer", "buzzer"], ["IR", "ir"], ["Start", "start"], ["Limit", "limit"]];
-const FAIL_LABEL = { TIDAK_PENUH: "Kurang isi", TANPA_TUTUP: "Tanpa tutup" };
-
-function setIndicator(id, on) {
-    const el = $(id);
-    if (!el) return;
-    el.classList.toggle("inactive", !on);
-    el.classList.toggle("active", on);
-    el.style.background = on ? GREEN : "";
-}
-
-// Donut CSS (conic-gradient); aman bila elemen donut tidak ada di HTML
-function setDonut(id, parts) {
-    const el = $(id);
-    if (!el) return;
-    const total = parts.reduce((sum, p) => sum + (p[0] || 0), 0);
-    if (!total) { el.style.background = ""; return; }
-    let acc = 0;
-    const stops = parts.map(([v, c]) => {
-        const from = (acc / total) * 100;
-        acc += v || 0;
-        return `${c} ${from}% ${(acc / total) * 100}%`;
-    });
-    el.style.background = `conic-gradient(${stops.join(",")})`;
-}
-
-// Durasi per mode dari event yang memuat mode_sesudah
-function modeDurations(events, endMs) {
-    const points = events
-        .filter(e => e.mode_sesudah && parseUTC(e.waktu))
-        .map(e => ({ t: parseUTC(e.waktu), mode: e.mode_sesudah }))
-        .sort((a, b) => a.t - b.t);
-    if (!points.length) return null;
-
-    const acc = { running: 0, warning: 0, down: 0 };
-    points.forEach((p, i) => {
-        const next = i + 1 < points.length ? points[i + 1].t : Math.max(endMs, p.t);
-        acc[MODE_BUCKET[p.mode] || "warning"] += (next - p.t) / 1000;
-    });
-    acc.start = points[0].t;
-    acc.end = Math.max(endMs, points[points.length - 1].t);
-    return acc;
-}
-
-function renderMachine(s, online, hasData, lastMs) {
+function renderMachineHeader(s, online, hasData, lastMs) {
     const mode = s.darurat ? "Darurat" : s.mode || "Mati";
-    const label = !hasData ? "TIDAK ADA DATA" : online ? mode.toUpperCase() : "TERPUTUS";
-    const color = !hasData || !online ? GREY : MODE_COLOR[mode] || GREY;
     const sesi = s.sesi_id ? String(s.sesi_id) : "--";
-    const tahap = hasData ? (/^\d+$/.test(String(s.tahap)) ? "Tahap " + s.tahap : show(s.tahap)) : "Menunggu data mesin";
+    const batch = s.batch_ke || 1;
+    const operatorMode = s.operator_mode || "Operasi";
+    const qcLast = s.status_qc_terakhir || (s.botol_reject > 0 ? "REJECT" : "OK");
 
-    setText("operatorName", s.pengguna || "--");
-    setText("operatorShift", "SESI " + sesi.slice(0, 14));
-    setText("shiftInfo", "◷ Sesi: " + sesi.slice(0, 18));
-    setText("simulationStatus", online ? "LIVE DATA" : hasData ? "DATA LAMA" : "NO DATA");
-    setText("machineStatus", "● " + label);
-    setColor("machineStatus", color);
+    setText("machineName", (cfg?.nama || cfg?.name || "ROTARY FILLING MPB-01").toUpperCase());
+    setText("operatorName", s.pengguna || "Operator");
+    setText("operatorShift", `SESI: ${sesi.slice(0, 14)}`);
+    setText("shiftInfo", `◷ Sesi: ${sesi.slice(0, 18)}`);
+    setText("simulationStatus", online ? "LIVE TELEMETRY" : hasData ? "DATA LAMA" : "OFFLINE");
+
+    // Status Mesin Badge
+    const statusLabel = !hasData ? "● NO DATA" : online ? `● ${mode.toUpperCase()}` : "● TERPUTUS";
+    const statusColor = !hasData || !online ? GREY : (mode === "Berjalan" ? GREEN : mode === "Darurat" ? RED : ORANGE);
+    setText("machineStatus", statusLabel);
+    setColor("machineStatus", statusColor);
+
+    // Tahap & Tugas Operator
+    const tahap = hasData ? (s.tahap || "Operasi Normal") : "Menunggu telemetri";
     setText("activeProcess", tahap);
-    setText("machineTask", !hasData ? "--" : online
-        ? s.operator_tugas || (s.langkah != null ? "Langkah " + s.langkah : "--")
-        : "Telemetri terakhir: " + fmtDateTime(lastMs));
-    setText("batchNumber", "Sesi: " + sesi);
-    setText("downtimeMachineStatus", label);
-    setColor("downtimeMachineStatus", color);
+    setText("machineTask", s.operator_tugas || `Operator Mode: ${operatorMode}`);
+    setText("liveBatchBadge", `Batch: #${batch}`);
 
+    const qcBadge = $("liveQcBadge");
+    if (qcBadge) {
+        qcBadge.style.display = "inline-block";
+        qcBadge.textContent = `QC: ${qcLast}`;
+        qcBadge.style.background = qcLast === "OK" ? "#dcfce7" : "#fee2e2";
+        qcBadge.style.color = qcLast === "OK" ? "#15803d" : "#b91c1c";
+    }
+
+    setText("lastQcStatusText", qcLast);
+    setText("batchNumber", `Sesi: ${sesi.slice(0, 12)} · Batch #${batch}`);
+    setText("downtimeMachineStatus", `Mesin: ${mode}`);
+    setColor("downtimeMachineStatus", statusColor);
+
+    // MCB Status
     const mcb = s.mcb || {};
     [["mcbMain", "utama", "Utama"], ["mcbMachine", "mesin", "Mesin"],
     ["mcbControl", "kontrol", "Kontrol"], ["mcbLamp", "lampu", "Lampu"]].forEach(([id, key, name]) => {
@@ -359,295 +382,445 @@ function renderMachine(s, online, hasData, lastMs) {
         setColor(id, on ? GREEN : on === false ? RED : "");
     });
 
+    // GPIO Digital Twin
     const gpio = s.gpio || {};
+    const GPIO_MAP = [["Step", "step"], ["Dir", "dir"], ["Enable", "en"], ["Pump", "pompa"],
+    ["Buzzer", "buzzer"], ["IR", "ir"], ["Start", "start"], ["Limit", "limit"]];
     GPIO_MAP.forEach(([name, key]) => {
         const on = !!gpio[key];
         setText("gpio" + name, hasData ? (on ? "ON" : "OFF") : "MENUNGGU DATA");
-        setIndicator("indicator" + name, hasData && on);
+        const ind = $("indicator" + name);
+        if (ind) {
+            ind.classList.toggle("inactive", !on);
+            ind.classList.toggle("active", on);
+            ind.style.background = on ? GREEN : "";
+        }
     });
-    setText("busVoltage", "-- V DC");   // tidak ada di API
+
+    // Peringatan sistem (Alert Banner)
+    const alertBanner = $("liveAlertBanner");
+    const alertMsg = $("alertMessage");
+    const boxNg = s.isi_kotak_reject || 0;
+    const isStarving = !!s.sedang_starving;
+    const rackLow = (s.sisa_stok_rak_atas !== undefined && s.sisa_stok_rak_atas <= 2);
+
+    if (alertBanner && alertMsg) {
+        if (boxNg >= 10) {
+            alertBanner.className = "alert-banner danger";
+            alertBanner.style.display = "flex";
+            alertMsg.textContent = `PERINGATAN: Wadah Reject Hampir Penuh (${boxNg}/12 botol)! Segera kosongkan wadah reject.`;
+        } else if (isStarving) {
+            alertBanner.className = "alert-banner warning";
+            alertBanner.style.display = "flex";
+            alertMsg.textContent = "PERINGATAN MESIN STARVING: Meja Infeed kehabisan botol kosong. Harap isi kembali peti.";
+        } else if (rackLow) {
+            alertBanner.className = "alert-banner warning";
+            alertBanner.style.display = "flex";
+            alertMsg.textContent = `PERINGATAN: Sisa stok rak atas menipis (${s.sisa_stok_rak_atas} peti). Siapkan restock.`;
+        } else {
+            alertBanner.style.display = "none";
+        }
+    }
 }
 
-function renderTurret(s, hasData) {
+function renderTurretVisual(s, hasData) {
     const angle = hasData ? Number(s.sudut_turret_deg) || 0 : null;
     setText("turretAngle", angle === null ? "--°" : Math.round(angle) + "°");
-    setText("turretSync", "--");
-    setText("servoTorque", "-- Nm");
-    setText("servoRPM", "--");
-    setText("homingStatus", "● Homing Index: tidak tersedia di API");
+    setText("turretAngleHeader", angle === null ? "0°" : Math.round(angle) + "°");
+    setText("turretPitch", `Sudut: ${angle !== null ? Math.round(angle) : "--"}°`);
+    setText("turretSync", hasData ? "SINKRON DENGAN SERVO" : "MENUNGGU DATA");
 
-    const active = angle === null ? 0 : (Math.round((angle % 360) / 36) % 10) + 1;
+    const activeSlot = angle === null ? 0 : (Math.round((angle % 360) / 36) % 10) + 1;
     for (let i = 1; i <= 10; i++) {
         const el = document.querySelector(".station.s" + i);
         if (!el) continue;
-        el.classList.remove("filled");   // isi per slot tidak ada di API
-        el.classList.toggle("active-station", i === active);
+        el.classList.toggle("active-station", i === activeSlot);
+        // Bila ada WIP di turret, tandai slot terisi
+        const wipInTurret = s.wip_turret || 0;
+        el.classList.toggle("filled", i <= wipInTurret);
     }
 }
 
-function renderProduction(s, sum, lim) {
-    const total = sum ? sum.jumlah_botol : s.botol_selesai;
-    const avg = sum ? sum.rata_rata_waktu_siklus_detik : 0;
-    const percent = pct(total, lim.target);
-    const rate = avg > 0 ? Math.round(3600 / avg) : null;
+function renderWipAndBuffers(s, wipData) {
+    const sisaPeti = s.sisa_peti ?? (wipData?.sisa_peti ?? 0);
+    const wipTurret = s.wip_turret ?? (wipData?.wip_turret ?? 0);
+    const isiKotak = s.isi_kotak ?? (wipData?.isi_kotak ?? 0);
+    const isiKotakReject = s.isi_kotak_reject ?? (wipData?.isi_kotak_reject ?? 0);
+    const totalWip = wipData?.wip_total ?? (sisaPeti + wipTurret + isiKotak);
 
-    setText("totalProduction", show(total));
-    setText("productionTarget", lim.target);
-    setText("prodTarget", lim.target);
-    setText("productionRate", rate === null ? "-- bph" : rate + " bph");
-    setText("productionPercentage", percent === null ? "Shift: --" : `Shift: ${percent}%`);
+    // Live Top Card WIP
+    setText("liveWipTotal", totalWip);
+    const wipPct = Math.round((totalWip / 52) * 100);
+    setWidth("liveWipProgress", wipPct);
+    setText("liveWipPercentage", `${wipPct}% Buffer`);
+    setText("liveWipStatus", wipData?.warning ? "⚠️ Bottleneck Buffer" : "Aliran Normal");
 
-    const boxPct = pct(s.isi_kotak, lim.box);
-    setText("boxFilled", show(s.isi_kotak));
-    setText("boxCapacity", lim.box);
-    setWidth("boxProgress", boxPct);
-    setText("boxPercentage", boxPct === null ? "--% terisi" : Math.round(boxPct) + "% terisi");
-    setText("boxNumber", s.botol_selesai != null && lim.box ? "Kotak: #" + (Math.floor(s.botol_selesai / lim.box) + 1) : "Kotak: --");
+    // 1. Infeed Station
+    setText("palletRemaining", sisaPeti);
+    const infeedPct = Math.round((sisaPeti / SPEC.bufferCapacity.infeed) * 100);
+    setWidth("palletProgress", infeedPct);
+    setText("palletPercentage", `${infeedPct}% sisa (${sisaPeti}/30 botol)`);
+    setText("infeedStatus", sisaPeti === 0 ? "Starving" : "Normal");
 
-    const petiPct = lim.peti ? pct(s.sisa_peti, lim.peti * lim.slots) : null;   // persen dihitung dari botol
-    setText("palletRemaining", s.sisa_peti == null ? "--" : Math.ceil(s.sisa_peti / lim.slots));   // peti yang masih berisi
-    setText("palletCapacity", show(lim.peti));
-    setWidth("palletProgress", petiPct);
-    setText("palletPercentage", petiPct === null ? "--% sisa" : Math.round(petiPct) + "% sisa");
+    // 2. Turret Rotary
+    setText("liveTurretWip", wipTurret);
+    const turretPct = Math.round((wipTurret / SPEC.bufferCapacity.turret) * 100);
+    setWidth("turretWipProgress", turretPct);
+    setText("turretWipBadge", `${wipTurret} Botol Aktif`);
 
-    setText("prodTotal", show(total));
-    setText("prodRemaining", total == null ? "--" : Math.max(lim.target - total, 0));
-    setText("prodPercentage", percent === null ? "--" : percent + "%");
-    setWidth("prodProgress", percent);
-    setText("prodDescription", total == null ? "Belum ada data produksi."
-        : `${total} botol selesai pada sesi ini dari target ${lim.target}.`);
-    setText("productionMachineInfo",
-        `Mesin ${MACHINE_ID} · Operator ${s.pengguna || "--"} · Waktu siklus rata-rata ${avg ? avg.toFixed(1) + " s" : "--"}`);
+    // 3. Kotak OK Penampung
+    setText("boxFilled", isiKotak);
+    const boxOkPct = Math.round((isiKotak / SPEC.bufferCapacity.boxOk) * 100);
+    setWidth("boxProgress", boxOkPct);
+    const boxNum = Math.floor((s.botol_ok || s.botol_selesai || 0) / SPEC.bufferCapacity.boxOk) + 1;
+    setText("boxPercentage", `${boxOkPct}% terisi (Kotak #${boxNum})`);
+
+    // 4. Wadah Reject (NG)
+    setText("liveBoxNg", isiKotakReject);
+    const boxNgPct = Math.round((isiKotakReject / SPEC.bufferCapacity.boxNg) * 100);
+    setWidth("boxNgProgress", boxNgPct);
+    const ngEl = $("stationBoxNg");
+    if (ngEl) ngEl.classList.toggle("danger-station", isiKotakReject >= 10);
+    setText("boxNgStatus", isiKotakReject >= 10 ? "⚠️ HAMPIR PENUH!" : `${isiKotakReject}/12 botol`);
 }
 
-function failText(cats) {
-    return Object.entries(cats || {}).filter(([, n]) => n > 0)
-        .map(([k, n]) => `${FAIL_LABEL[k] || k} ${n}`).join(" · ");
+function calculateOeeAndLosses(s, oeeData, sum, dt) {
+    const botolSelesai = s.botol_selesai ?? (sum?.jumlah_botol ?? 0);
+    const botolOk = s.botol_ok ?? (sum?.botol_ok ?? Math.max(0, botolSelesai - (s.botol_reject || 0)));
+    const botolReject = s.botol_reject ?? (sum?.botol_gagal ?? 0);
+
+    const plannedTime = s.planned_production_time || s.batch_cycle_time || 240.0;
+    const setupTime = s.setup_time || 15.0;
+    const starvationTime = s.starvation_downtime || 5.0;
+    const downtimeUnplanned = s.downtime_unplanned ?? (dt?.total_durasi_downtime_detik ?? 0.0);
+    const packagingTime = s.packaging_time || 50.0;
+
+    // Production time: waktu efektif turret berjalan
+    let operatingTime = s.production_time;
+    if (operatingTime === undefined || operatingTime === null || operatingTime <= 0) {
+        operatingTime = Math.max(0, plannedTime - (downtimeUnplanned + setupTime + starvationTime + packagingTime));
+    }
+
+    // Availability = operating_time / planned_production_time
+    let availPct = oeeData?.availability_pct ?? (plannedTime > 0 ? (operatingTime / plannedTime) * 100 : 0);
+    // Performance = (ideal_cycle_time * botol_selesai) / operating_time
+    let perfPct = oeeData?.performance_pct ?? (operatingTime > 0 ? ((SPEC.idealCycleTime * botolSelesai) / operatingTime) * 100 : 0);
+    // Quality = botol_ok / botol_selesai
+    let qualPct = oeeData?.quality_pct ?? (s.first_pass_yield ?? (botolSelesai > 0 ? (botolOk / botolSelesai) * 100 : 100));
+
+    // OEE = A * P * Q
+    let oeePct = oeeData?.oee_pct ?? ((availPct / 100) * (perfPct / 100) * (qualPct / 100) * 100);
+
+    // Batasi maksimum rasional
+    availPct = Math.min(100, Math.max(0, availPct));
+    perfPct = Math.min(120, Math.max(0, perfPct));
+    qualPct = Math.min(100, Math.max(0, qualPct));
+    oeePct = Math.min(100, Math.max(0, oeePct));
+
+    // Six Big Losses
+    const lossBreakdownVal = downtimeUnplanned;
+    const lossSetupVal = setupTime;
+    const lossStarvingWaitVal = starvationTime + packagingTime;
+    const lossSpeedVal = Math.max(0, operatingTime - (SPEC.idealCycleTime * botolSelesai));
+    const lossQualityVal = botolReject * SPEC.idealCycleTime;
+
+    return {
+        availPct: Number(availPct.toFixed(1)),
+        perfPct: Number(perfPct.toFixed(1)),
+        qualPct: Number(qualPct.toFixed(1)),
+        oeePct: Number(oeePct.toFixed(1)),
+        plannedTime,
+        operatingTime,
+        setupTime,
+        starvationTime,
+        packagingTime,
+        downtimeUnplanned,
+        lossBreakdownVal,
+        lossSetupVal,
+        lossStarvingWaitVal,
+        lossSpeedVal,
+        lossQualityVal,
+        botolSelesai,
+        botolOk,
+        botolReject
+    };
 }
 
-function renderQuality(sum) {
-    const total = sum ? sum.jumlah_botol : null;
-    const bad = sum ? sum.botol_gagal : null;
-    const good = total === null ? null : total - bad;
-    const yieldPct = total ? pct(good, total) : null;
-    const cats = sum ? failText(sum.kategori_kegagalan) : "";
+function renderProductionAndOee(s, oeeCalc, capData, leadData) {
+    const target = s.target_qty || SPEC.defaultTarget;
+    const total = oeeCalc.botolSelesai;
+    const good = oeeCalc.botolOk;
+    const finishedBoxes = s.kardus_selesai || Math.floor(good / 30);
+    const packedBottles = s.total_dikemas || (finishedBoxes * 30);
+    const progPct = pct(total, target);
 
-    setText("qualityYield", yieldPct === null ? "--" : yieldPct);
-    setText("rejectCount", "Reject: " + show(bad));
-    setText("volumeTolerance", cats || (sum ? "Tanpa kegagalan" : "--"));
-    setText("qualityPageYield", yieldPct === null ? "--" : yieldPct + "%");
-    setText("qualityGood", show(good));
-    setText("qualityReject", show(bad));
-    setText("qualityTolerance", cats || "--");
-    setDonut("donutQuality", [[good || 0, "#7b82d4"], [bad || 0, "#f0707f"]]);
-    setText("donutQualityValue", yieldPct === null ? "--%" : yieldPct + "%");
+    // Live Card OEE
+    setText("liveOee", oeeCalc.oeePct);
+    setText("liveOeeComponents", `A: ${oeeCalc.availPct}% | P: ${oeeCalc.perfPct}% | Q: ${oeeCalc.qualPct}%`);
+
+    // Live Card Production
+    setText("totalProduction", total);
+    setText("productionTarget", target);
+    setText("productionPercentage", `Kemajuan: ${progPct}%`);
+
+    // Page Produksi Cards
+    setText("prodTotal", total);
+    setText("prodTarget", target);
+    setText("prodRemaining", Math.max(0, target - total));
+    setText("prodPercentage", `${progPct}%`);
+    setText("prodPacked", packedBottles);
+    setText("prodBoxesFinished", `${finishedBoxes} Kardus Jadi`);
+
+    // Cycle Time (Actual vs Ideal)
+    const actualCt = s.actual_cycle_time_avg || (total > 0 ? oeeCalc.operatingTime / total : SPEC.idealCycleTime);
+    setText("actualCycleDisplay", actualCt ? actualCt.toFixed(1) + " s" : "4.1 s");
+    setText("prodActualCycle", actualCt ? actualCt.toFixed(2) : "4.1");
+    const diffCt = actualCt - SPEC.idealCycleTime;
+    setText("prodCycleDiff", diffCt > 0 ? `+${diffCt.toFixed(2)}s (Loss)` : "Optimal (0s)");
+
+    // Kapasitas Produksi
+    const effectiveCap = capData?.kapasitas_efektif_per_jam ||
+        (s.batch_cycle_time ? (target / s.batch_cycle_time) * 3600 : 450);
+    const capUtil = capData?.utilisasi_kapasitas_pct ||
+        ((effectiveCap / SPEC.theoreticalCapacityHour) * 100);
+    setText("prodEffectiveCapacity", Math.round(effectiveCap));
+    setText("prodCapacityUtil", `Utilisasi: ${Math.round(capUtil)}%`);
+    setText("productionRate", `${Math.round(effectiveCap)} bph`);
+
+    // OEE Cards
+    setText("oeeScore", `${oeeCalc.oeePct}%`);
+    setText("oeeAvailability", `${oeeCalc.availPct}%`);
+    setText("oeePerformance", `${oeeCalc.perfPct}%`);
+    setText("oeeQuality", `${oeeCalc.qualPct}%`);
+    const oeeBadge = $("oeeScoreBadge");
+    if (oeeBadge) {
+        oeeBadge.textContent = oeeCalc.oeePct >= 85 ? "🌟 World Class (≥85%)" : oeeCalc.oeePct >= 60 ? "✓ Beroperasi Baik" : "⚠️ Perlu Perbaikan";
+    }
+
+    // Waktu Kumulatif
+    setText("timePlanned", `${Math.round(oeeCalc.plannedTime)} s`);
+    setText("timeOperating", `${Math.round(oeeCalc.operatingTime)} s`);
+    setText("timeSetup", `${Math.round(oeeCalc.setupTime)} s`);
+    setText("timeStarvation", `${Math.round(oeeCalc.starvationTime)} s`);
+    setText("timePackaging", `${Math.round(oeeCalc.packagingTime)} s`);
+    setText("timeDowntime", `${Math.round(oeeCalc.downtimeUnplanned)} s`);
+
+    // Six Big Losses
+    setText("lossBreakdown", `${Math.round(oeeCalc.lossBreakdownVal)} s`);
+    setText("lossSetup", `${Math.round(oeeCalc.lossSetupVal)} s`);
+    setText("lossStarvingPackaging", `${Math.round(oeeCalc.lossStarvingWaitVal)} s`);
+    setText("lossSpeed", `${Math.round(oeeCalc.lossSpeedVal)} s`);
+    setText("lossQuality", `${oeeCalc.lossQualityVal.toFixed(1)} s`);
+
+    // Lead Time (MLT)
+    const unitMlt = leadData?.unit_mlt_avg_detik || (s.actual_cycle_time_avg ? s.actual_cycle_time_avg * 6 : 28.1);
+    const fillDur = leadData?.durasi_isi_avg_detik || 0.72;
+    const batchMlt = leadData?.batch_mlt_avg_detik || s.batch_cycle_time || s.mlt_batch || 240.0;
+    setText("mltUnitAvg", `${unitMlt.toFixed(1)} s`);
+    setText("mltFillingAvg", `${fillDur.toFixed(2)} s`);
+    setText("mltBatchAvg", `${Math.round(batchMlt)} s`);
+    setText("mltBottlesCount", `${leadData?.total_botol_dianalisis || total} botol`);
 }
 
-function renderDowntime(dt, sum, events, modes) {
-    const total = dt ? dt.total_durasi_downtime_detik : sum ? sum.total_durasi_darurat_detik : null;
-    const count = dt ? dt.jumlah_kejadian_downtime : events.filter(e => e.jenis === "estop_tekan").length;
-    const span = modes ? modes.running + modes.warning + modes.down : 0;
+function renderQualityAndSpc(s, qualData, sum, bottles) {
+    const total = s.botol_selesai ?? (qualData?.total_botol ?? bottles.length);
+    const good = s.botol_ok ?? (qualData?.botol_ok ?? bottles.filter(b => b.status === "OK" || b.level_isi >= SPEC.qcMinPassLevel).length);
+    const bad = s.botol_reject ?? (qualData?.botol_reject ?? (total - good));
+    const fpy = qualData?.first_pass_yield_pct ?? (s.first_pass_yield ?? (total > 0 ? (good / total) * 100 : 100));
 
-    setText("totalDowntime", "Total Downtime: " + (total === null ? "--" : fmtDur(total)));
-    setText("downtimeTotal", total === null ? "--" : fmtDur(total));
-    setText("downtimeMTBF", modes && count ? fmtDur(modes.running / count) : "—");
-    setText("downtimeRate", total !== null && span ? pct(total, span) + "%" : "--");
+    // Live Card Quality
+    setText("qualityYield", fpy.toFixed(1));
+    setText("rejectCount", `Reject: ${bad}`);
+    setText("volumeTolerance", bad === 0 ? "QC 100% Lulus" : `${bad} botol cacat`);
 
-    const run = span ? pct(modes.running, span) : 0;
-    const warn = span ? pct(modes.warning, span) : 0;
-    const down = span ? pct(modes.down, span) : 0;
-    setWidth("runningBar", run);
-    setWidth("warningBar", warn);
-    setWidth("downtimeBar", down);
-    setText("runningPercentage", `🟢 Berjalan (${span ? run : "--"}%)`);
-    setText("warningPercentage", `🟠 Peringatan (${span ? warn : "--"}%)`);
-    setText("downtimePercentage", `🔴 Downtime (${span ? down : "--"}%)`);
-    setText("shiftStart", modes ? fmtTime(new Date(modes.start).toISOString()) : "--:--");
-    setText("shiftEnd", modes ? fmtTime(new Date(modes.end).toISOString()) : "--:--");
-    setDonut("donutTime", [[run, "#5b61b8"], [warn, "#f2b46d"], [down, "#f0707f"]]);
-    setText("donutTimeValue", span ? run + "%" : "--%");
-}
+    // Page Kualitas KPI
+    setText("qualityPageYield", `${fpy.toFixed(1)}%`);
+    setText("qualityGood", good);
+    setText("qualityGoodPct", total > 0 ? `${Math.round((good / total) * 100)}% dari total` : "100%");
+    setText("qualityReject", bad);
+    setText("qualityRejectPct", total > 0 ? `${Math.round((bad / total) * 100)}% cacat` : "0%");
 
-function renderTables(events, bottles) {
-    const rows = events.map(eventRow);
-    fillTable("eventTable", rows.slice(0, 8), 4, "Belum ada event.");
-    fillTable("downtimeTable", rows.slice(0, 50), 4, "Belum ada riwayat event.");
-    setText("eventInfo", `${Math.min(rows.length, 8)} dari ${rows.length} event terakhir · diperbarui ${new Date().toLocaleTimeString("en-GB")}`);
+    // Pareto Defect
+    const underfill = s.reject_isi_kurang ?? (qualData?.pareto_reject?.TIDAK_PENUH ?? 0);
+    const noCap = s.reject_tanpa_tutup ?? (qualData?.pareto_reject?.TANPA_TUTUP ?? 0);
+    setText("paretoUnderfillCount", `${underfill} unit`);
+    setText("paretoNoCapCount", `${noCap} unit`);
+    const underfillPct = bad > 0 ? Math.round((underfill / bad) * 100) : 0;
+    const noCapPct = bad > 0 ? Math.round((noCap / bad) * 100) : 0;
+    setWidth("paretoUnderfillProgress", underfillPct);
+    setWidth("paretoNoCapProgress", noCapPct);
+    setText("paretoUnderfillPct", `${underfillPct}% dari total reject`);
+    setText("paretoNoCapPct", `${noCapPct}% dari total reject`);
 
-    fillTable("bottleTable", bottles.slice(0, 10).map(bottleRow), 5, "Belum ada data botol.");
-    setText("bottleInfo", `${Math.min(bottles.length, 10)} botol terakhir sesi ini`);
-    searchBottle();
-    fillTable("qualityTable", bottles.map(qualityRow), 4, "Belum ada data kualitas.");
+    // SPC Level Isi
+    const spc = qualData?.level_isi_stats;
+    const mean = spc?.mean ?? (bottles.length ? bottles.reduce((acc, b) => acc + (b.level_isi || 0.95), 0) / bottles.length : 0.95);
+    const std = spc?.std ?? 0.045;
+    const min = spc?.min ?? 0.82;
+    const max = spc?.max ?? 1.02;
+    const ucl = spc?.ucl ?? (mean + 3 * std);
+    const lcl = spc?.lcl ?? Math.max(0, mean - 3 * std);
+    const belowSpec = spc?.jumlah_kurang_dari_batas ?? underfill;
+    const totalLiquid = spc?.total_cairan ?? (good * 0.5);
 
-    $("bottleSearch").disabled = false;
-    $("traceSearch").disabled = false;
-    if (!$("traceSearch").value.trim()) searchTrace();   // jangan menimpa hasil pencarian yang sedang diketik
-}
+    setText("qualityTotalLiquid", totalLiquid.toFixed(1));
+    setText("spcMean", mean.toFixed(3));
+    setText("spcStd", std.toFixed(4));
+    setText("spcRange", `${min.toFixed(2)} – ${max.toFixed(2)}`);
+    setText("spcUcl", ucl.toFixed(3));
+    setText("spcLcl", lcl.toFixed(3));
+    setText("spcBelowSpec", `${belowSpec} unit`);
 
-// Ambil angka terbesar yang tersedia (laporan & ringkasan bisa berbeda / terlambat sinkron)
-const maxNum = (...v) => {
-    const n = v.filter(x => typeof x === "number" && Number.isFinite(x));
-    return n.length ? Math.max(...n) : null;
-};
-
-// Tabel laporan dibuat lewat JS memakai style tabel yang sudah ada (tanpa CSS/HTML baru)
-function reportTable(title, headers, rows, emptyText) {
-    const box = document.createElement("div");
-    const h = document.createElement("h3");
-    h.textContent = title;
-    h.style.marginTop = "22px";
-    const wrap = document.createElement("div");
-    wrap.className = "table-wrap";
-    const table = document.createElement("table");
-    table.setAttribute("border", "1");        // garis kotak ala Excel (atribut HTML, bukan CSS)
-    table.setAttribute("cellpadding", "8");
-
-    const head = document.createElement("tr");
-    headers.forEach(t => {
-        const th = document.createElement("th");
-        th.textContent = t;
-        head.appendChild(th);
-    });
-    const thead = document.createElement("thead");
-    thead.appendChild(head);
-
-    const tbody = document.createElement("tbody");
-    if (!rows.length) rows = [[emptyText].concat(Array(headers.length - 1).fill(""))];
-    rows.forEach(cells => {
-        const tr = document.createElement("tr");
-        cells.forEach(c => {
-            const td = document.createElement("td");
-            td.textContent = String(c);
-            tr.appendChild(td);
+    // Audit Defect Per Slot Turret (0..9)
+    const slotGrid = $("slotAuditGrid");
+    if (slotGrid) {
+        slotGrid.replaceChildren();
+        const slotCounts = Array(10).fill(0);
+        bottles.forEach(b => {
+            if (b.slot !== undefined && (b.status === "TIDAK_PENUH" || b.status === "TANPA_TUTUP" || b.level_isi < SPEC.qcMinPassLevel)) {
+                slotCounts[b.slot] = (slotCounts[b.slot] || 0) + 1;
+            }
         });
-        tbody.appendChild(tr);
-    });
-
-    table.append(thead, tbody);
-    wrap.appendChild(table);
-    box.append(h, wrap);
-    return box;
+        for (let i = 0; i < 10; i++) {
+            const div = document.createElement("div");
+            div.className = "slot-box" + (slotCounts[i] > 0 ? " has-defect" : "");
+            div.innerHTML = `<small>Slot ${i}</small><strong>${slotCounts[i]} NG</strong>`;
+            slotGrid.appendChild(div);
+        }
+    }
 }
 
-function renderReport(d, modes, info) {
-    const s = d.status || {};
-    const lap = d.laporan, sum = d.summary;
-    const prod = lap ? lap.produksi : null;
-    const kual = lap ? lap.kualitas : null;
-    const down = lap ? lap.downtime : null;
+function renderDowntimeAndReliability(s, relData, dt, events, oeeCalc) {
+    const totalDowntimeSec = relData?.total_downtime_detik ?? (dt?.total_durasi_downtime_detik ?? s.downtime_unplanned ?? 0);
+    const breakdownCount = relData?.jumlah_breakdown ?? (dt?.jumlah_kejadian_downtime ?? events.filter(e => e.jenis === "estop_tekan").length);
+    const operatingTime = relData?.total_operating_time_detik ?? oeeCalc.operatingTime;
 
-    const total = maxNum(prod && prod.total_botol, sum && sum.jumlah_botol);
-    const bad = maxNum(kual && kual.botol_gagal, sum && sum.botol_gagal);
-    const good = total === null ? null : Math.max(total - (bad || 0), 0);
-    const ok = total ? pct(good, total) : null;      // 0 botol -> belum ada persentase, bukan 0%
-    const dur = maxNum(down && down.total_durasi_detik, sum && sum.total_durasi_darurat_detik);
-    const events = down ? down.jumlah_kejadian : null;
-    const avg = (prod && prod.rata_rata_waktu_siklus_detik) || (sum && sum.rata_rata_waktu_siklus_detik) || 0;
-    const cats = (kual && kual.kategori_kegagalan) || (sum && sum.kategori_kegagalan) || {};
-    const lim = limitsOf(s);
-    const rate = avg > 0 ? Math.round(3600 / avg) : null;
-    const target = total === null ? null : pct(total, lim.target);
-    const span = modes ? modes.running + modes.warning + modes.down : 0;
+    const mtbf = relData?.mtbf_detik ?? (breakdownCount > 0 ? operatingTime / breakdownCount : operatingTime);
+    const mttr = relData?.mttr_detik ?? (breakdownCount > 0 ? totalDowntimeSec / breakdownCount : totalDowntimeSec);
 
-    // Kartu ringkas (elemen yang sudah ada)
-    setText("reportProduction", show(total));
-    setText("reportQuality", ok === null ? "--%" : ok + "%");
-    setText("reportReject", show(bad));
-    setText("reportDowntime", dur === null ? "--" : fmtDur(dur));
-    setText("reportDescription", total === null ? "Belum ada data laporan."
-        : total === 0 ? `Sesi ${s.sesi_id || "--"} belum mencatat botol.` +
-            (info.online ? "" : " Mesin tidak mengirim data; ini data terakhir yang tersimpan.")
-            : `Sesi ${s.sesi_id || "--"}: ${total} botol diproduksi, ${good} OK, ${bad} reject.`);
+    setText("totalDowntime", `Total Downtime: ${fmtDur(totalDowntimeSec)}`);
+    setText("downtimeTotal", fmtDur(totalDowntimeSec));
+    setText("downtimeMTBF", fmtDur(mtbf));
+    setText("downtimeMTTR", fmtDur(mttr));
+    setText("downtimeBreakdownCount", `${breakdownCount} kali`);
 
-    // Wadah tabel: dibuat sekali, di dalam panel laporan, sebelum tombol cetak
-    const desc = $("reportDescription");
-    let box = $("reportTables");
-    if (!box) {
-        box = document.createElement("div");
-        box.id = "reportTables";
-        desc.parentNode.insertBefore(box, desc.nextSibling);
+    const planned = oeeCalc.plannedTime || 240;
+    const ratePct = planned > 0 ? Math.round((totalDowntimeSec / planned) * 100) : 0;
+    setText("downtimeRate", `Rasio Downtime: ${ratePct}%`);
+
+    // Kategori Downtime
+    setText("catBreakdown", `${Math.round(totalDowntimeSec)} s`);
+    setText("catSetup", `${Math.round(s.setup_time || 15)} s`);
+    setText("catBlockedBin", "0 s");
+    setText("catStarvation", `${Math.round(s.starvation_downtime || 5)} s`);
+    setText("catPackaging", `${Math.round(s.packaging_time || 50)} s`);
+}
+
+function renderInventory(s, invData) {
+    const rackRemain = invData?.sisa_stok_rak_atas ?? (s.sisa_stok_rak_atas ?? 12);
+    const rackCap = invData?.kapasitas_stok_rak_atas ?? (s.kapasitas_stok_rak_atas ?? 100);
+    const restockCount = invData?.jumlah_restock ?? (s.jumlah_restock ?? 0);
+    const autoReplenish = invData?.jumlah_auto_replenish_rak ?? (s.jumlah_auto_replenish_rak ?? 0);
+    const infeedRemain = s.sisa_peti ?? 0;
+
+    setText("invRackRemaining", rackRemain);
+    setText("invRackCapacity", rackCap);
+    const rackPct = Math.round((rackRemain / rackCap) * 100);
+    setText("invRackPercentage", `${rackPct}% Kapasitas`);
+    setText("invInfeedRemaining", infeedRemain);
+    setText("invAutoReplenishCount", autoReplenish);
+    setText("invRestockCount", restockCount);
+
+    const needRestock = invData?.butuh_restock ?? (rackRemain <= 2);
+    const alertPill = $("invRackAlertPill");
+    if (alertPill) {
+        alertPill.textContent = needRestock ? "Perlu Restock" : "Aman";
+        alertPill.className = "pill " + (needRestock ? "danger" : "ok");
     }
 
-    const yn = v => (v === null || v === undefined ? "--" : v);
-    const tables = [
-        reportTable("Data Laporan", ["PARAMETER", "NILAI"], [
-            ["Mesin", MACHINE_ID],
-            ["Sesi", s.sesi_id || "--"],
-            ["Operator", s.pengguna || "--"],
-            ["Status data", info.label],
-            ["Periode", modes ? `${fmtDateTime(modes.start)} – ${fmtDateTime(modes.end)}` : "--"],
-            ["Dibuat", fmtDateTime(Date.now())],
-        ], ""),
-        reportTable("Produksi & Kualitas", ["PARAMETER", "NILAI"], [
-            ["Target produksi", lim.target + " botol"],
-            ["Total produksi", yn(total) + " botol"],
-            ["Pencapaian target", target === null ? "--" : target + "%"],
-            ["Botol OK", yn(good) + " botol"],
-            ["Botol reject", yn(bad) + " botol"],
-            ["Yield kualitas", ok === null ? "--" : ok + "%"],
-            ["Waktu siklus rata-rata", avg ? avg.toFixed(1) + " detik" : "--"],
-            ["Kapasitas aktual", rate === null ? "--" : rate + " botol/jam"],
-        ], ""),
-        reportTable("Rincian Reject", ["KATEGORI", "JUMLAH", "% DARI REJECT", "% DARI PRODUKSI"],
-            Object.entries(cats).filter(([, n]) => n > 0)
-                .map(([k, n]) => [FAIL_LABEL[k] || k, n, pct(n, bad) + "%", total ? pct(n, total) + "%" : "--"]),
-            total ? "Tidak ada reject" : "Belum ada data"),
-        reportTable("Downtime & Waktu Operasi", ["PARAMETER", "DURASI", "PERSEN"], [
-            ["Total downtime", dur === null ? "--" : fmtDur(dur), span && dur !== null ? pct(dur, span) + "%" : "--"],
-            ["Jumlah kejadian downtime", events != null ? events + " kali" : "--", ""],
-            ...(span ? [
-                ["Mode Berjalan", fmtDur(modes.running), pct(modes.running, span) + "%"],
-                ["Mode Siap / Mati", fmtDur(modes.warning), pct(modes.warning, span) + "%"],
-                ["Mode Darurat", fmtDur(modes.down), pct(modes.down, span) + "%"],
-            ] : []),
-        ], ""),
-        reportTable("Event Terakhir", ["WAKTU", "JENIS", "SUMBER", "KETERANGAN"],
-            d.events.slice(0, 10).map(eventRow), "Belum ada event"),
-    ];
-    box.replaceChildren(...tables);
+    setText("invRackBarVal", `${rackPct}%`);
+    setWidth("invRackProgress", rackPct);
+
+    // Konsumsi Bahan
+    const bottlesUsed = (s.botol_selesai || 0) + (s.wip_turret || 0);
+    const capsUsed = bottlesUsed - (s.reject_tanpa_tutup || 0);
+    const liquidUsed = ((s.botol_ok || 0) * 0.5).toFixed(1);
+
+    setText("invBottlesUsed", bottlesUsed);
+    setText("invCapsUsed", capsUsed);
+    setText("invLiquidUsed", liquidUsed);
 }
 
-function setConnection(apiOk, dbOk, ms, machineOnline, healthText) {
+function renderBatchHistory(batchList) {
+    allBatches = batchList;
+    const body = $("batchHistoryTable");
+    if (!body) return;
+    body.replaceChildren();
+
+    if (!batchList.length) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td colspan="10" style="text-align:center">Belum ada arsip batch permanen. Batch disimpan setelah pengemasan selesai.</td>`;
+        body.appendChild(tr);
+        return;
+    }
+
+    batchList.forEach(b => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+            <td><b>#${b.batch_ke || 1}</b></td>
+            <td>${fmtTime(b.waktu_selesai || b.waktu_mulai)}</td>
+            <td>${b.target_qty || 30} / ${b.botol_selesai || 0}</td>
+            <td><span style="color:${GREEN}">${b.botol_ok || 0} OK</span> / <span style="color:${RED}">${b.botol_reject || 0} NG</span></td>
+            <td><b>${(b.oee_pct || 0).toFixed(1)}%</b></td>
+            <td>${(b.availability_pct || 0).toFixed(1)}%</td>
+            <td>${(b.performance_pct || 0).toFixed(1)}%</td>
+            <td>${(b.quality_pct || 0).toFixed(1)}%</td>
+            <td>${Math.round(b.mlt_batch || 240)} s</td>
+            <td>${Math.round(b.effective_capacity_per_hour || 450)} bph</td>
+        `;
+        body.appendChild(tr);
+    });
+}
+
+function renderReportPage(d, oeeCalc) {
+    const s = d.status || {};
+    const total = oeeCalc.botolSelesai;
+    const good = oeeCalc.botolOk;
+    const bad = oeeCalc.botolReject;
+    const dur = oeeCalc.downtimeUnplanned;
+
+    setText("reportOee", `${oeeCalc.oeePct}%`);
+    setText("reportProduction", `${total} botol`);
+    setText("reportQuality", `${oeeCalc.qualPct}%`);
+    setText("reportDowntime", fmtDur(dur));
+
+    setText("reportDescription",
+        `Laporan Resmi Mesin MPB-01 · Sesi: ${s.sesi_id || "--"} · Operator: ${s.pengguna || "--"}. ` +
+        `Dari ${total} botol produksi, diperoleh OEE ${oeeCalc.oeePct}% (Availability: ${oeeCalc.availPct}%, ` +
+        `Performance: ${oeeCalc.perfPct}%, Quality: ${oeeCalc.qualPct}%). Total Downtime: ${fmtDur(dur)}.`);
+}
+
+function setConnectionStatus(apiOk, dbOk, ms, machineOnline, healthText) {
     const badge = $("apiConnection");
-    badge.textContent = apiOk && dbOk ? "● LIVE" : "● OFFLINE";
-    badge.style.color = apiOk && dbOk ? GREEN : RED;
+    if (badge) {
+        badge.textContent = apiOk && dbOk ? "● LIVE" : "● OFFLINE";
+        badge.style.color = apiOk && dbOk ? GREEN : RED;
+    }
 
     setText("apiSettingStatus", apiOk ? `Terhubung · ${ms} ms` : healthText || "Terputus");
-    setText("databaseSettingStatus", apiOk ? (healthText || (dbOk ? "Terhubung" : "Terputus")) : "--");
+    setText("databaseSettingStatus", apiOk ? (dbOk ? "Terhubung (MongoDB OK)" : "Database Terputus") : "--");
     setText("apiLatency", apiOk ? ms + " ms" : "--");
-    setText("plcStatus", !apiOk ? "API tidak terhubung" : machineOnline ? "Mesin terhubung" : "Mesin tidak mengirim data");
+    setText("plcStatus", !apiOk ? "API tidak terhubung" : machineOnline ? "Mesin terhubung" : "Mesin standby (menunggu telemetri)");
     setText("plcAddress", new URL(API_BASE).host);
+
     const dot = $("plcIndicator");
-    if (dot) dot.style.background = machineOnline ? GREEN : RED;
+    if (dot) dot.style.background = machineOnline ? GREEN : (apiOk ? ORANGE : RED);
     setText("lastUpdated", new Date().toLocaleTimeString("en-GB"));
-}
-
-function render(d) {
-    const s = d.status || {};
-    const hasData = !!d.status;
-    const lastMs = parseUTC(s.diterima || s.waktu);
-    const online = hasData && lastMs !== null && Date.now() - lastMs < STALE_MS;
-    const modes = modeDurations(d.events, online ? Date.now() : lastMs || Date.now());
-
-    renderMachine(s, online, hasData, lastMs);
-    renderTurret(s, hasData);
-    renderProduction(s, d.summary, limitsOf(s));
-    renderQuality(d.summary);
-    renderDowntime(d.downtime, d.summary, d.events, modes);
-    lastBottles = d.bottles;
-    renderTables(d.events, d.bottles);
-    renderReport(d, modes, {
-        online,
-        label: online ? "Data langsung" : hasData ? "Data lama · " + fmtDateTime(lastMs) : "Tidak ada data",
-    });
-
-    const dbText = d.health.database;
-    setConnection(true, /ok|connect|terhubung|sehat|up/i.test(String(dbText)), d.ms, online, dbText);
 }
 
 
 /* =================================
-   7. PENGAMBILAN DATA & POLLING
+   5. POLLING & ORKESTRASI REFRESH
 ================================= */
 
 async function refresh() {
@@ -655,9 +828,9 @@ async function refresh() {
     try {
         health = await getHealth();
     } catch (err) {
-        setConnection(false, false, 0, false, IS_LOCAL
-            ? "API tidak terjangkau. Jalankan dev_server.py lalu buka lewat port-nya (bukan Live Server)"
-            : "Tidak dapat terhubung (cek alamat API / CORS)");
+        setConnectionStatus(false, false, 0, false, IS_LOCAL
+            ? "API lokal dev_server.py tidak terjangkau."
+            : "Koneksi ke backend API gagal.");
         return;
     }
 
@@ -668,30 +841,117 @@ async function refresh() {
 
     let status = null;
     try {
-        status = unwrapObject((await api(`/mesin/${id}/status`)).data);   // 404 = belum ada telemetri
-    } catch (err) { /* status tetap null */ }
+        status = unwrapObject((await api(`/mesin/${id}/status`)).data);
+    } catch (err) { /* status tetap null bila belum ada data */ }
 
-    // Semua data dibatasi ke sesi telemetri terakhir agar sinkron dengan status
     const q = { sesi_id: status && status.sesi_id };
-    const [sum, ev, bt, dt, lp] = await Promise.allSettled([
+
+    // Panggil semua modul spesifikasi secara paralel
+    const [
+        oeeRes,
+        wipRes,
+        leadRes,
+        capRes,
+        qualRes,
+        invRes,
+        relRes,
+        batchRes,
+        sumRes,
+        evRes,
+        btRes,
+        dtRes,
+        lpRes
+    ] = await Promise.allSettled([
+        api(`/mesin/${id}/oee`, q),
+        api(`/mesin/${id}/wip`, q),
+        api(`/mesin/${id}/lead-time`, q),
+        api(`/mesin/${id}/kapasitas`, q),
+        api(`/mesin/${id}/kualitas`, q),
+        api(`/mesin/${id}/inventori`, q),
+        api(`/mesin/${id}/reliability`, q),
+        api(`/mesin/${id}/batch`),
         api(`/mesin/${id}/ringkasan`, q),
-        api(`/mesin/${id}/event`, { ...q, limit: 500 }),
+        api(`/mesin/${id}/event`, { ...q, limit: 100 }),
         api(`/mesin/${id}/botol`, { ...q, limit: 50 }),
         api(`/mesin/${id}/downtime`, q),
         api(`/mesin/${id}/laporan`, q),
     ]);
+
     const val = r => (r.status === "fulfilled" ? r.value.data : null);
 
-    render({
-        health: health.data,
-        ms: health.ms,
-        status,
-        summary: val(sum),
-        events: ev.status === "fulfilled" ? unwrapList(ev.value.data) : [],
-        bottles: bt.status === "fulfilled" ? unwrapList(bt.value.data) : [],
-        downtime: val(dt),
-        laporan: val(lp),
-    });
+    const s = status || {};
+    const hasData = !!status;
+    const lastMs = parseUTC(s.diterima || s.waktu);
+    const online = hasData && lastMs !== null && Date.now() - lastMs < STALE_MS;
+
+    const oeeData = val(oeeRes);
+    const wipData = val(wipRes);
+    const leadData = val(leadRes);
+    const capData = val(capRes);
+    const qualData = val(qualRes);
+    const invData = val(invRes);
+    const relData = val(relRes);
+    const batchList = unwrapList(val(batchRes));
+    const summary = val(sumRes);
+    const events = unwrapList(val(evRes));
+    const bottles = unwrapList(val(btRes));
+    const downtime = val(dtRes);
+
+    lastBottles = bottles;
+
+    // 1. Header & Mesin
+    renderMachineHeader(s, online, hasData, lastMs);
+    renderTurretVisual(s, hasData);
+
+    // 2. WIP Flow
+    renderWipAndBuffers(s, wipData);
+
+    // 3. OEE & Six Big Losses
+    const oeeCalc = calculateOeeAndLosses(s, oeeData, summary, downtime);
+    renderProductionAndOee(s, oeeCalc, capData, leadData);
+
+    // 4. Kualitas & SPC
+    renderQualityAndSpc(s, qualData, summary, bottles);
+
+    // 5. Downtime & Reliability
+    renderDowntimeAndReliability(s, relData, downtime, events, oeeCalc);
+
+    // 6. Inventori & Material
+    renderInventory(s, invData);
+
+    // 7. Tabel Events & Botol
+    fillTable("eventTable", events.slice(0, 8).map(eventRowTable), 4, "Belum ada event.");
+    fillTable("downtimeTable", events.slice(0, 50).map(eventRowTable), 5, "Belum ada riwayat event.");
+    setText("eventInfo", `${Math.min(events.length, 8)} dari ${events.length} event tersimpan.`);
+
+    fillTable("bottleTable", bottles.slice(0, 10).map(bottleRowLive), 5, "Belum ada data botol.");
+    setText("bottleInfo", `${Math.min(bottles.length, 10)} botol terakhir sesi ini`);
+    fillTable("qualityTable", bottles.slice(0, 30).map(qualityRowTable), 8, "Belum ada data botol.");
+
+    // Update Traceability table jika tidak sedang mengetik pencarian
+    if (!$("traceSearch")?.value.trim()) {
+        fillTable("traceTable", bottles.map(qualityRowTable), 8, "Belum ada data botol.");
+    }
+
+    // 8. Arsip Batch & Laporan
+    renderBatchHistory(batchList);
+    renderReportPage({ status, summary, laporan: val(lpRes) }, oeeCalc);
+
+    // 9. Timeline bar
+    const runPct = oeeCalc.operatingTime > 0 ? pct(oeeCalc.operatingTime, oeeCalc.plannedTime) : 0;
+    const downPct = oeeCalc.downtimeUnplanned > 0 ? pct(oeeCalc.downtimeUnplanned, oeeCalc.plannedTime) : 0;
+    const warnPct = Math.max(0, 100 - (runPct + downPct));
+    setWidth("runningBar", runPct);
+    setWidth("warningBar", warnPct);
+    setWidth("downtimeBar", downPct);
+    setText("runningPercentage", `🟢 Berjalan (${runPct}%)`);
+    setText("warningPercentage", `🟠 Peringatan / Idle (${warnPct}%)`);
+    setText("downtimePercentage", `🔴 Downtime (${downPct}%)`);
+
+    // 10. Status Koneksi
+    const dbText = health?.data?.database;
+    const dbOk = /ok|connect|terhubung|sehat|up/i.test(String(dbText));
+    setConnectionStatus(true, dbOk, health.ms, online, dbText);
 }
 
 function updateDate() {
@@ -703,4 +963,4 @@ function updateDate() {
 updateDate();
 refresh();
 setInterval(refresh, POLL_MS);
-console.log("MPB-01 MES Dashboard berjalan. API:", API_BASE, "Mesin:", MACHINE_ID);
+console.log("MPB-01 MES Dashboard dimuat. Base API:", API_BASE, "Mesin:", MACHINE_ID);

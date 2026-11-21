@@ -1344,3 +1344,295 @@ body.dark-mode .indicator.inactive {
         display: none;
     }
 }
+
+/* =========================================================
+   MES SPECIFICATION ENHANCEMENTS: OEE, WIP, SPC, INVENTORY
+========================================================= */
+
+.alert-banner {
+    display: none;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 18px;
+    border-radius: 12px;
+    margin-bottom: 18px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.alert-banner.warning {
+    display: flex;
+    background: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffeeba;
+}
+
+.alert-banner.danger {
+    display: flex;
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+body.dark-mode .alert-banner.warning {
+    background: #4a3800;
+    color: #ffecb5;
+    border-color: #664d03;
+}
+
+body.dark-mode .alert-banner.danger {
+    background: #491217;
+    color: #f8d7da;
+    border-color: #842029;
+}
+
+/* WIP Flow Stations */
+.wip-flow {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin: 18px 0;
+}
+
+.wip-station {
+    background: var(--soft);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 16px;
+    position: relative;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.wip-station:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow);
+}
+
+.wip-station-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.wip-station-header b {
+    font-size: 13px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.wip-station h3 {
+    font-size: 24px;
+    font-family: 'Oswald', sans-serif;
+    margin: 4px 0 10px;
+    color: var(--text);
+}
+
+.wip-station h3 small {
+    font-size: 14px;
+    color: var(--muted);
+    font-weight: 400;
+}
+
+.wip-station.danger-station {
+    border-color: var(--red);
+    background: #fff5f5;
+}
+
+body.dark-mode .wip-station.danger-station {
+    background: #331518;
+}
+
+/* OEE Grid */
+.oee-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px;
+    margin-bottom: 20px;
+}
+
+.oee-card {
+    background: var(--soft);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 16px;
+    text-align: center;
+}
+
+.oee-card.primary {
+    border-color: var(--navy);
+    background: var(--soft2);
+}
+
+.oee-card h4 {
+    font-size: 12px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+}
+
+.oee-card h2 {
+    font-size: 32px;
+    font-family: 'Oswald', sans-serif;
+    color: var(--text);
+}
+
+.oee-card p {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 6px;
+}
+
+/* Six Big Losses List */
+.losses-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+    margin-top: 14px;
+}
+
+.loss-item {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.loss-item-label small {
+    display: block;
+    font-size: 11px;
+    color: var(--muted);
+}
+
+.loss-item-label strong {
+    font-size: 13px;
+    color: var(--text);
+}
+
+.loss-item-val {
+    font-family: 'Oswald', sans-serif;
+    font-size: 16px;
+    color: var(--red);
+    font-weight: 600;
+}
+
+/* SPC & Pareto Section */
+.spc-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin: 14px 0;
+}
+
+.spc-stat {
+    background: var(--soft);
+    border-radius: 10px;
+    padding: 12px;
+    text-align: center;
+}
+
+.spc-stat small {
+    font-size: 11px;
+    color: var(--muted);
+    display: block;
+}
+
+.spc-stat strong {
+    font-size: 18px;
+    font-family: 'Oswald', sans-serif;
+    color: var(--text);
+}
+
+/* Slot Defect Audit (0..9) */
+.slot-audit-grid {
+    display: grid;
+    grid-template-columns: repeat(10, 1fr);
+    gap: 8px;
+    margin: 14px 0;
+}
+
+.slot-box {
+    background: var(--soft);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 8px 4px;
+    text-align: center;
+}
+
+.slot-box.has-defect {
+    border-color: var(--red);
+    background: #ffebee;
+}
+
+body.dark-mode .slot-box.has-defect {
+    background: #3b1619;
+}
+
+.slot-box small {
+    font-size: 10px;
+    color: var(--muted);
+    display: block;
+}
+
+.slot-box strong {
+    font-size: 14px;
+    color: var(--text);
+}
+
+/* Detail Card for Traceability */
+.bottle-detail-card {
+    background: var(--soft);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 18px;
+    margin-bottom: 18px;
+}
+
+.detail-row-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin-top: 12px;
+}
+
+.detail-item small {
+    font-size: 11px;
+    color: var(--muted);
+    display: block;
+}
+
+.detail-item strong {
+    font-size: 14px;
+    color: var(--text);
+}
+
+/* Status Pills */
+.pill {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.pill.ok { background: #dcfce7; color: #15803d; }
+.pill.danger { background: #fee2e2; color: #b91c1c; }
+.pill.warning { background: #fef3c7; color: #b45309; }
+.pill.info { background: #e0e7ff; color: #4338ca; }
+
+body.dark-mode .pill.ok { background: #14532d; color: #86efac; }
+body.dark-mode .pill.danger { background: #7f1d1d; color: #fca5a5; }
+body.dark-mode .pill.warning { background: #78350f; color: #fde68a; }
+body.dark-mode .pill.info { background: #312e81; color: #c7d2fe; }
+
+/* Responsive adjustments */
+@media (max-width: 900px) {
+    .slot-audit-grid {
+        grid-template-columns: repeat(5, 1fr);
+    }
+}
