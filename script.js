@@ -9,13 +9,24 @@
 ================================= */
 
 const REMOTE_API = "https://filling-machine-api.zamazzam.me";
-const IS_LOCAL = ["localhost", "127.0.0.1"].includes(location.hostname);
-const API_BASE = (window.MES_API_BASE || (IS_LOCAL ? location.origin : REMOTE_API)).replace(/\/$/, "");
 const MACHINE_ID = window.MES_MACHINE_ID || "mesin-01";
 const API_KEY = window.MES_API_KEY || "";
-const PREFIX_CANDIDATES = window.MES_API_PREFIX ? [window.MES_API_PREFIX] : ["/api", "/api/v1"];
 const POLL_MS = 3000;
 const STALE_MS = 30000;
+
+// Kandidat host API yang akan dites secara otomatis
+let apiBase = window.MES_API_BASE || null;
+let apiPrefix = window.MES_API_PREFIX || null;
+
+const CANDIDATE_BASES = [
+    window.MES_API_BASE,
+    location.origin,
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://filling-machine-api.zamazzam.me",
+    "http://localhost:5500",
+    "http://127.0.0.1:5500"
+].filter(Boolean);
 
 // Spesifikasi Kapasitas Mesin (Halaman 4 & 7 PDF)
 const SPEC = {
@@ -32,7 +43,6 @@ const SPEC = {
     defaultTarget: 30,
 };
 
-let apiPrefix = null;
 let cfg = null;
 let lastBottles = [];
 let allBatches = [];
@@ -77,7 +87,8 @@ function fmtDur(sec) {
 }
 
 async function api(path, query) {
-    const url = new URL(API_BASE + (apiPrefix || "/api") + path);
+    if (!apiBase) await getHealth();
+    const url = new URL((apiBase || REMOTE_API) + (apiPrefix || "/api") + path);
     Object.entries(query || {}).forEach(([k, v]) => { if (v !== undefined && v !== null && v !== "") url.searchParams.set(k, v); });
     const t0 = performance.now();
     const res = await fetch(url, API_KEY ? { headers: { "X-Api-Key": API_KEY } } : undefined);
@@ -90,12 +101,43 @@ async function api(path, query) {
 }
 
 async function getHealth() {
-    let lastErr;
-    for (const prefix of apiPrefix ? [apiPrefix] : PREFIX_CANDIDATES) {
-        apiPrefix = prefix;
-        try { return await api("/health"); } catch (err) { lastErr = err; }
+    // 1. Jika apiBase sudah diketahui, tes dulu
+    if (apiBase) {
+        for (const prefix of apiPrefix ? [apiPrefix] : ["/api", "/api/v1"]) {
+            try {
+                const url = new URL(apiBase + prefix + "/health");
+                const t0 = performance.now();
+                const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
+                if (res.ok) {
+                    apiPrefix = prefix;
+                    return { data: await res.json(), ms: Math.round(performance.now() - t0), base: apiBase };
+                }
+            } catch (e) {}
+        }
+        apiBase = null; // reset jika tidak lagi merespons
     }
-    apiPrefix = null;
+
+    // 2. Auto-discovery dari daftar kandidat host
+    let lastErr = new Error("Semua endpoint API tidak dapat dijangkau");
+    for (const base of CANDIDATE_BASES) {
+        const cleanBase = base.replace(/\/$/, "");
+        for (const prefix of ["/api", "/api/v1"]) {
+            try {
+                const url = new URL(cleanBase + prefix + "/health");
+                const t0 = performance.now();
+                const res = await fetch(url, { signal: AbortSignal.timeout(3000) });
+                if (res.ok) {
+                    const data = await res.json();
+                    apiBase = cleanBase;
+                    apiPrefix = prefix;
+                    console.log("MES Dashboard terhubung ke API:", apiBase + apiPrefix);
+                    return { data, ms: Math.round(performance.now() - t0), base: apiBase };
+                }
+            } catch (err) {
+                lastErr = err;
+            }
+        }
+    }
     throw lastErr;
 }
 
@@ -807,11 +849,17 @@ function setConnectionStatus(apiOk, dbOk, ms, machineOnline, healthText) {
         badge.style.color = apiOk && dbOk ? GREEN : RED;
     }
 
-    setText("apiSettingStatus", apiOk ? `Terhubung · ${ms} ms` : healthText || "Terputus");
+    const currentUrl = apiBase || REMOTE_API;
+    setText("apiSettingUrl", currentUrl);
+    setText("apiSettingStatus", apiOk ? `Terhubung · ${ms} ms (${currentUrl})` : healthText || "Terputus");
     setText("databaseSettingStatus", apiOk ? (dbOk ? "Terhubung (MongoDB OK)" : "Database Terputus") : "--");
     setText("apiLatency", apiOk ? ms + " ms" : "--");
     setText("plcStatus", !apiOk ? "API tidak terhubung" : machineOnline ? "Mesin terhubung" : "Mesin standby (menunggu telemetri)");
-    setText("plcAddress", new URL(API_BASE).host);
+    try {
+        setText("plcAddress", new URL(currentUrl).host);
+    } catch (e) {
+        setText("plcAddress", currentUrl);
+    }
 
     const dot = $("plcIndicator");
     if (dot) dot.style.background = machineOnline ? GREEN : (apiOk ? ORANGE : RED);
