@@ -40,10 +40,20 @@ body.dark-mode {
     box-sizing: border-box;
 }
 
+html,
+body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+}
+
 body {
     font-family: 'Inter', sans-serif;
     background: var(--bg);
     color: var(--text);
+    height: 100vh;
+    max-height: 100vh;
 }
 
 h1,
@@ -64,7 +74,9 @@ button {
 
 .dashboard {
     display: flex;
-    min-height: 100vh;
+    height: 100vh;
+    max-height: 100vh;
+    overflow: hidden;
 }
 
 /* =========================
@@ -72,73 +84,71 @@ button {
 ========================= */
 
 .sidebar {
-    width: 280px;
-    min-width: 280px;
+    width: 250px;
+    min-width: 250px;
     background: var(--navy-d);
     color: white;
-    padding: 18px 12px;
+    padding: 12px 10px;
     display: flex;
     flex-direction: column;
     transition: width 0.3s ease, min-width 0.3s ease,
         padding 0.3s ease;
     overflow-x: hidden;
     overflow-y: auto;
-    position: sticky;
-    top: 0;
     height: 100vh;
     align-self: flex-start;
     flex-shrink: 0;
 }
 
 .brand {
-    padding: 0 12px 34px;
+    padding: 4px 8px 12px;
     white-space: nowrap;
 }
 
 .brand h2 {
-    font-size: 28px;
+    font-size: 20px;
     font-weight: 700;
     letter-spacing: 0.5px;
 }
 
 .brand span {
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 700;
-    letter-spacing: 2px;
+    letter-spacing: 1.5px;
     color: #b9bde8;
 }
 
 .nav-title {
     font-family: 'Oswald', sans-serif;
-    font-size: 13px;
+    font-size: 11px;
     font-weight: 500;
-    letter-spacing: 2px;
+    letter-spacing: 1.5px;
     color: #9aa0d9;
-    padding: 0 12px;
-    margin-bottom: 8px;
+    padding: 0 8px;
+    margin-bottom: 6px;
     white-space: nowrap;
 }
 
 .nav-menu {
     display: flex;
     flex-direction: column;
-    gap: 5px;
+    gap: 2px;
 }
 
 .nav-link {
     width: 100%;
-    min-height: 50px;
+    min-height: 38px;
     border: none;
     background: transparent;
-    padding: 13px 14px;
+    padding: 8px 10px;
     display: flex;
     align-items: center;
-    gap: 12px;
-    border-radius: 14px;
+    gap: 10px;
+    border-radius: 10px;
     color: #d6d8f3;
     text-align: left;
     white-space: nowrap;
-    font-size: 17px;
+    font-size: 13.5px;
     transition: background 0.2s, color 0.2s;
 }
 
@@ -153,10 +163,10 @@ button {
 }
 
 .nav-icon {
-    width: 19px;
-    min-width: 19px;
+    width: 18px;
+    min-width: 18px;
     text-align: center;
-    font-size: 20px;
+    font-size: 16px;
 }
 
 .nav-text {
@@ -166,80 +176,102 @@ button {
 
 .sidebar-bottom {
     margin-top: auto;
-    background: rgba(255, 255, 255, 0.08);
-    padding: 13px;
-    border-radius: 16px;
-    display: grid;
-    grid-template-columns: 32px 1fr;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 10px 12px;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
     gap: 8px;
     min-width: 0;
 }
 
-.operator-icon {
-    background: rgba(255, 255, 255, 0.16);
-    border-radius: 50%;
-    width: 32px;
-    height: 32px;
-    display: grid;
-    place-items: center;
+.operator-profile {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
 }
 
-.operator-info small,
+.operator-icon {
+    background: rgba(255, 255, 255, 0.14);
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    display: grid;
+    place-items: center;
+    font-size: 13px;
+    color: white;
+}
+
+.operator-info {
+    min-width: 0;
+    overflow: hidden;
+}
+
 .operator-info strong {
     display: block;
     font-size: 13px;
+    font-weight: 600;
+    color: white;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.2;
 }
 
 .operator-info small {
-    color: #b9bde8;
-}
-
-.operator-info strong {
-    font-size: 16px;
-    margin-top: 3px;
+    display: block;
+    font-size: 11px;
+    color: #9aa0d9;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.2;
+    margin-top: 2px;
 }
 
 .plc-status {
-    grid-column: 1 / -1;
-    font-size: 13px;
-    color: #d6d8f3;
-    margin-top: 10px;
+    font-size: 11.5px;
+    color: #cbd0f8;
     display: flex;
     align-items: center;
-    gap: 5px;
-    flex-wrap: wrap;
-    white-space: normal;
+    gap: 6px;
+    padding-top: 6px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .green-dot {
-    width: 8px;
-    height: 8px;
+    width: 7px;
+    height: 7px;
+    min-width: 7px;
     background: var(--green);
     border-radius: 50%;
 }
 
 .ip-address {
-    flex-basis: 100%;
-    margin-left: 13px;
-    word-break: break-all;
-    color: #9aa0d9;
+    display: none;
 }
 
 /* SIDEBAR COLLAPSE */
 
 .dashboard.collapsed .sidebar {
-    width: 76px;
-    min-width: 76px;
-    padding: 18px 9px;
+    width: 68px;
+    min-width: 68px;
+    padding: 12px 6px;
 }
 
 .dashboard.collapsed .brand {
-    padding: 0 0 34px;
+    padding: 4px 0 16px;
     text-align: center;
 }
 
 .dashboard.collapsed .brand h2 {
-    font-size: 15px;
+    font-size: 13px;
     white-space: normal;
 }
 
@@ -253,13 +285,17 @@ button {
 
 .dashboard.collapsed .nav-link {
     justify-content: center;
-    padding: 11px 5px;
+    padding: 8px 4px;
+    min-height: 36px;
 }
 
 .dashboard.collapsed .sidebar-bottom {
     display: flex;
     justify-content: center;
-    padding: 10px 0;
+    align-items: center;
+    padding: 8px 0;
+    border: none;
+    background: transparent;
 }
 
 .dashboard.collapsed .operator-icon {
@@ -273,8 +309,13 @@ button {
 .main-content {
     flex: 1;
     min-width: 0;
-    padding: 0 28px 34px;
+    height: 100vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 0 24px 24px;
     position: relative;
+    display: flex;
+    flex-direction: column;
 }
 
 /* pita navy di belakang topbar dan bagian atas kartu */
@@ -284,7 +325,7 @@ button {
     top: 0;
     left: 0;
     right: 0;
-    height: 220px;
+    height: 180px;
     background: var(--navy);
     z-index: 0;
 }
@@ -299,58 +340,121 @@ button {
 ========================= */
 
 .topbar {
-    height: 78px;
-    min-height: 78px;
-    margin: 0 -28px;
-    padding: 0 28px;
+    height: 62px;
+    min-height: 62px;
+    margin: 0 -24px;
+    padding: 0 24px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 20px;
+    gap: 14px;
     background: var(--navy);
     color: white;
     position: sticky;
     top: 0;
     z-index: 100;
     box-sizing: border-box;
+    flex-shrink: 0;
 }
 
 .topbar-left {
     display: flex;
     align-items: center;
-    gap: 15px;
+    gap: 12px;
+    min-width: 0;
+    flex: 0 1 auto;
+}
+
+.topbar-title-block {
+    display: flex;
+    align-items: center;
     min-width: 0;
 }
 
-.topbar-left>div {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    white-space: nowrap;
-}
-
-.topbar-left>div strong {
+.topbar-title-block strong {
     font-family: 'Oswald', sans-serif;
-    font-size: 28px;
+    font-size: 19px;
     font-weight: 700;
     letter-spacing: 0.5px;
     color: white;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 320px;
 }
 
-.topbar-left>div span {
+.topbar-select-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.top-machine-select {
+    width: 95px;
+    max-width: 105px;
+    height: 32px;
+    padding: 2px 8px;
+    font-size: 12px;
+    font-weight: 700;
+    background: rgba(255, 255, 255, 0.18);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 8px;
+    outline: none;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.top-machine-select option {
+    background: var(--navy-d);
+    color: white;
+}
+
+.icon-btn-compact {
+    width: 32px;
+    height: 32px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.14);
+    color: white;
     font-size: 15px;
-    color: #c9ccf0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.15s;
+    flex-shrink: 0;
+}
+
+.icon-btn-compact:hover {
+    background: rgba(255, 255, 255, 0.28);
+}
+
+.icon-btn-compact:active {
+    transform: scale(0.9);
+}
+
+@keyframes spinIcon {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.icon-btn-compact.spinning {
+    animation: spinIcon 0.6s linear infinite !important;
 }
 
 .toggle-sidebar {
-    width: 42px;
-    height: 42px;
+    width: 36px;
+    height: 36px;
     flex-shrink: 0;
     border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 12px;
+    border-radius: 10px;
     background: rgba(255, 255, 255, 0.14);
     color: white;
-    font-size: 22px;
+    font-size: 18px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -362,31 +466,35 @@ button {
 }
 
 .live-badge {
-    padding: 6px 12px;
-    border-radius: 20px;
+    padding: 5px 10px;
+    border-radius: 16px;
     background: white;
     color: var(--green);
-    font-size: 13px;
+    font-size: 11px;
     font-weight: 700;
     white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .topbar-actions {
     display: flex;
     align-items: center;
     justify-content: flex-end;
-    gap: 9px;
+    gap: 8px;
     flex-shrink: 0;
 }
 
 .top-info {
-    padding: 9px 12px;
+    padding: 6px 12px;
     background: rgba(255, 255, 255, 0.14);
     color: white;
-    border-radius: 20px;
-    font-size: 13px;
+    border-radius: 16px;
+    font-size: 12px;
     font-weight: 500;
     white-space: nowrap;
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .simulation {
@@ -401,15 +509,15 @@ button {
 
 .icon-btn,
 .profile-btn {
-    width: 42px;
-    height: 42px;
+    width: 34px;
+    height: 34px;
     flex-shrink: 0;
     border: none;
-    border-radius: 12px;
+    border-radius: 10px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 20px;
+    font-size: 16px;
     transition: 0.2s;
 }
 
@@ -458,21 +566,21 @@ button {
 }
 
 .page-heading {
-    margin: 20px 0 26px;
+    margin: 12px 0 16px;
     color: white;
 }
 
 .page-heading h2 {
-    font-size: 32px;
+    font-size: 24px;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
 
 .page-heading p {
-    font-size: 16px;
+    font-size: 14px;
     color: #c9ccf0;
-    margin-top: 6px;
+    margin-top: 4px;
 }
 
 /* =========================
@@ -539,28 +647,28 @@ button {
 .stats-grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 18px;
-    margin-bottom: 14px;
+    gap: 14px;
+    margin-bottom: 12px;
 }
 
 .stat-card {
     background: var(--card);
-    padding: 22px;
-    border-radius: var(--r);
+    padding: 14px 18px;
+    border-radius: 16px;
     box-shadow: var(--shadow);
     min-width: 0;
 }
 
 .stat-label {
-    font-size: 13px;
+    font-size: 11px;
     font-weight: 700;
     color: var(--muted);
-    letter-spacing: 1.5px;
+    letter-spacing: 1px;
 }
 
 .stat-card h1 {
-    font-size: 39px;
-    margin: 10px 0 12px;
+    font-size: 28px;
+    margin: 4px 0 6px;
 }
 
 .stat-card h1 small {
@@ -1303,44 +1411,23 @@ body.dark-mode .indicator.inactive {
 }
 
 /* =========================
-   TOPBAR: cegah tumpang tindih
+   TOPBAR: RESPONSIVE BREAKPOINTS (Cegah Overlap)
 ========================= */
 
-.topbar-left {
-    flex: 1 1 auto;
-    min-width: 0;
-}
-
-.topbar-left>div {
-    min-width: 0;
-    overflow: hidden;
-}
-
-.topbar-left>div strong {
-    max-width: 320px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.live-badge {
-    flex-shrink: 0;
-}
-
-.top-info {
-    max-width: 260px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-/* layar < 1600px: subtitle disembunyikan supaya status API tidak tertimpa */
-@media (max-width: 1600px) {
-    .topbar-left>div span {
+@media (max-width: 1200px) {
+    #shiftInfo {
         display: none;
     }
 }
 
-@media (max-width: 1250px) {
+@media (max-width: 1050px) {
     #currentDate {
+        display: none;
+    }
+}
+
+@media (max-width: 900px) {
+    #simulationStatus {
         display: none;
     }
 }
@@ -1636,3 +1723,157 @@ body.dark-mode .pill.info { background: #312e81; color: #c7d2fe; }
         grid-template-columns: repeat(5, 1fr);
     }
 }
+
+/* =========================================================================
+   KOMPONEN TAMBAHAN MES AUDIT: DROPDOWN, FORM PENGATURAN, MODAL BATCH DETAIL
+========================================================================= */
+
+.machine-select {
+    background: var(--soft);
+    color: var(--text);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.2s;
+}
+
+.machine-select:focus {
+    border-color: var(--peri);
+}
+
+.form-control {
+    width: 100%;
+    padding: 8px 12px;
+    background: var(--soft);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.form-control:focus {
+    border-color: var(--peri);
+}
+
+.setting-input-group {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    width: 100%;
+    max-width: 480px;
+}
+
+.btn-sm {
+    padding: 5px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    background: var(--navy);
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: opacity 0.2s;
+}
+
+.btn-sm:hover {
+    opacity: 0.85;
+}
+
+.clickable-row {
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.clickable-row:hover {
+    background: var(--soft2) !important;
+}
+
+/* Modal Dialog */
+.modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.65);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    backdrop-filter: blur(4px);
+}
+
+.modal-card {
+    background: var(--card);
+    color: var(--text);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    width: 90%;
+    max-width: 680px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: var(--shadow);
+    padding: 24px;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 12px;
+    margin-bottom: 16px;
+}
+
+.modal-header h3 {
+    margin: 0;
+    font-size: 18px;
+}
+
+.modal-close-btn {
+    background: transparent;
+    border: none;
+    font-size: 20px;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 4px 8px;
+    line-height: 1;
+}
+
+.modal-close-btn:hover {
+    color: var(--text);
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    border-top: 1px solid var(--line);
+    padding-top: 14px;
+    margin-top: 20px;
+}
+
+/* Pratinjau Tampilan Tabel Excel di Halaman Laporan */
+#excelPreviewContainer table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--card);
+    color: var(--text);
+    font-size: 13px;
+}
+
+#excelPreviewContainer th,
+#excelPreviewContainer td {
+    padding: 8px 12px;
+    border: 1px solid var(--line);
+    text-align: left;
+}
+
+#excelPreviewContainer th {
+    background: var(--soft);
+    font-weight: 700;
+}
+

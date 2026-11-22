@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MPB-01 MES | Rotary Water Filling Machine</title>
+    <title>ROTARY FILLING | MES Dashboard</title>
     <link rel="stylesheet" href="style.css">
 </head>
 
@@ -16,8 +16,7 @@
         <aside class="sidebar" id="sidebar">
 
             <div class="brand">
-                <h2>MPB-01 MES</h2>
-                <span>ROTARY FILLING</span>
+                <h2>ROTARY FILLING</h2>
             </div>
 
             <p class="nav-title">NAVIGASI SISTEM</p>
@@ -69,17 +68,18 @@
             <!-- OPERATOR & PLC STATUS -->
             <div class="sidebar-bottom">
 
-                <div class="operator-icon">▣</div>
-
-                <div class="operator-info">
-                    <small id="operatorShift">SESI --</small>
-                    <strong id="operatorName">Operator</strong>
+                <div class="operator-profile">
+                    <div class="operator-icon">▣</div>
+                    <div class="operator-info">
+                        <strong id="operatorName">Operator</strong>
+                        <small id="operatorShift">Sesi --</small>
+                    </div>
                 </div>
 
-                <div class="plc-status">
+                <div class="plc-status" id="plcStatusBox">
                     <span class="green-dot" id="plcIndicator"></span>
-                    <span id="plcStatus">Memeriksa koneksi...</span>
-                    <span class="ip-address" id="plcAddress">--</span>
+                    <span id="plcStatus">Memeriksa...</span>
+                    <span class="ip-address" id="plcAddress" style="display:none;">--</span>
                 </div>
 
             </div>
@@ -99,10 +99,13 @@
                         ☰
                     </button>
 
-                    <div>
-                        <strong id="machineName">ROTARY FILLING MPB-01</strong>
-                        <span>Mesin Pengisi Botol Rotary</span>
+                    <div class="topbar-title-block">
+                        <strong id="machineName">ROTARY FILLING</strong>
                     </div>
+
+                    <button class="icon-btn-compact" id="topRefreshBtn" title="Segarkan Data Sekarang" onclick="refreshAll(true)">
+                        ⟳
+                    </button>
 
                     <span class="live-badge" id="apiConnection">
                         ● CONNECTING
@@ -117,7 +120,7 @@
                     </span>
 
                     <span class="top-info" id="currentDate">
-                        ▣ Memuat tanggal...
+                        ▣ --
                     </span>
 
                     <span class="simulation" id="simulationStatus">
@@ -505,6 +508,7 @@
                                     <tr>
                                         <th>WAKTU</th>
                                         <th>JENIS EVENT</th>
+                                        <th>SUMBER</th>
                                         <th>KATEGORI</th>
                                         <th>KETERANGAN</th>
                                     </tr>
@@ -512,7 +516,7 @@
 
                                 <tbody id="eventTable">
                                     <tr>
-                                        <td colspan="4" style="text-align:center">
+                                        <td colspan="5" style="text-align:center">
                                             Menunggu data event dari API...
                                         </td>
                                     </tr>
@@ -801,12 +805,13 @@
                                     <th>PERFORMANCE</th>
                                     <th>QUALITY</th>
                                     <th>BATCH MLT</th>
-                                    <th>KAPASITAS EFEKTIF</th>
+                                    <th>KAPASITAS</th>
+                                    <th>AKSI</th>
                                 </tr>
                             </thead>
                             <tbody id="batchHistoryTable">
                                 <tr>
-                                    <td colspan="10" style="text-align:center">
+                                    <td colspan="11" style="text-align:center">
                                         Memuat arsip batch dari API...
                                     </td>
                                 </tr>
@@ -1051,12 +1056,12 @@
                 </div>
 
 
-                <!-- KLASIFIKASI DOWNTIME STANDAR MES -->
+                <!-- KLASIFIKASI DOWNTIME STANDAR MES (ENUM API) -->
                 <div class="panel content-panel">
 
                     <h3>Kategori Standar Downtime & Penyebab Gangguan</h3>
                     <p style="color:var(--muted);margin-bottom:14px">
-                        Klasifikasi downtime untuk pareto gangguan sistem pengisian botol.
+                        Klasifikasi downtime resmi API untuk pareto gangguan sistem pengisian botol.
                     </p>
 
                     <div class="losses-grid">
@@ -1064,7 +1069,7 @@
                         <div class="loss-item">
                             <div class="loss-item-label">
                                 <strong>UNPLANNED_BREAKDOWN</strong>
-                                <small>E-Stop ditekan / Gangguan mekanik tak terduga</small>
+                                <small>E-Stop ditekan / Kerusakan mekanik mendadak</small>
                             </div>
                             <span class="loss-item-val" id="catBreakdown">-- s</span>
                         </div>
@@ -1087,18 +1092,18 @@
 
                         <div class="loss-item">
                             <div class="loss-item-label">
-                                <strong>STARVATION (IDLING)</strong>
-                                <small>Turret menunggu botol kosong di meja infeed</small>
+                                <strong>POWER_OFF</strong>
+                                <small>Mesin dimatikan / Pemadaman suplai daya utama</small>
                             </div>
-                            <span class="loss-item-val" id="catStarvation" style="color:var(--orange)">-- s</span>
+                            <span class="loss-item-val" id="catPowerOff" style="color:var(--muted)">-- s</span>
                         </div>
 
                         <div class="loss-item">
                             <div class="loss-item-label">
-                                <strong>PACKAGING_WAIT</strong>
-                                <small>Proses packing botol ke kardus & meletakkan ke palet</small>
+                                <strong>NORMAL_RUN</strong>
+                                <small>Operasi pengisian botol normal tanpa hambatan</small>
                             </div>
-                            <span class="loss-item-val" id="catPackaging" style="color:var(--navy)">-- s</span>
+                            <span class="loss-item-val" id="catNormalRun" style="color:var(--green)">-- s</span>
                         </div>
 
                     </div>
@@ -1109,24 +1114,24 @@
                 <!-- RIWAYAT EVENT DOWNTIME -->
                 <div class="panel content-panel">
 
-                    <h3>Riwayat Event & Alarm Mesin</h3>
+                    <h3>Riwayat Kejadian Downtime Mesin</h3>
 
                     <div class="table-wrap">
                         <table>
                             <thead>
                                 <tr>
                                     <th>WAKTU</th>
-                                    <th>JENIS EVENT</th>
-                                    <th>SUMBER</th>
-                                    <th>KATEGORI DOWNTIME</th>
-                                    <th>TRANSISI MODE / KETERANGAN</th>
+                                    <th>DURASI</th>
+                                    <th>KATEGORI</th>
+                                    <th>PENYEBAB / PESAN</th>
+                                    <th>SUMBER / OPERATOR</th>
                                 </tr>
                             </thead>
 
                             <tbody id="downtimeTable">
                                 <tr>
                                     <td colspan="5" style="text-align:center">
-                                        Menunggu riwayat event dari API...
+                                        Menunggu riwayat kejadian downtime dari API...
                                     </td>
                                 </tr>
                             </tbody>
@@ -1368,15 +1373,17 @@
 
                 <div class="panel content-panel">
 
-                    <h3>Ringkasan Laporan Resmi</h3>
+                    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px;margin-bottom:18px;">
+                        <div>
+                            <h3 style="margin-bottom:4px;">Tabel Laporan Produksi & KPI (Format Excel)</h3>
+                            <p style="color:var(--muted);font-size:13px;margin:0;">Laporan tabular native standar Microsoft Excel murni tanpa CSS.</p>
+                        </div>
+                        <button class="action-button" onclick="exportReportToExcel()" style="background:#107c41;color:white;font-weight:600;padding:10px 22px;border-radius:8px;display:inline-flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;border:none;">
+                            📊 Ekspor Tabel Excel (.xls)
+                        </button>
+                    </div>
 
-                    <p id="reportDescription">
-                        Menunggu data laporan dari API.
-                    </p>
-
-                    <button class="action-button" onclick="window.print()" style="margin-top:16px">
-                        🖨 Cetak Laporan MES
-                    </button>
+                    <div id="excelPreviewContainer" style="overflow-x:auto;"></div>
 
                 </div>
 
@@ -1423,23 +1430,7 @@
 
                 <div class="panel content-panel">
 
-                    <h3>Status & Parameter REST API</h3>
-
-                    <div class="setting-row">
-                        <div>
-                            <strong>Endpoint Base URL</strong>
-                            <p id="apiSettingUrl">https://filling-machine-api.zamazzam.me</p>
-                        </div>
-                        <strong id="apiSettingStatus">Memeriksa...</strong>
-                    </div>
-
-                    <div class="setting-row">
-                        <div>
-                            <strong>Mesin ID</strong>
-                            <p>ID identitas mesin di API.</p>
-                        </div>
-                        <strong id="settingMachineId">mesin-01</strong>
-                    </div>
+                    <h3>Status Operasional & Koneksi Sistem</h3>
 
                     <div class="setting-row">
                         <div>
@@ -1468,6 +1459,71 @@
                 </div>
 
             </section>
+
+            <!-- MODAL DETAIL ARSIP BATCH (GET /api/mesin/{id}/batch/{batch_ke}) -->
+            <div class="modal-backdrop" id="batchModal" style="display:none;" onclick="if(event.target===this)closeBatchModal()">
+                <div class="modal-card">
+                    <div class="modal-header">
+                        <h3 id="modalBatchTitle">Detail Batch #1</h3>
+                        <button class="modal-close-btn" onclick="closeBatchModal()">✕</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="detail-row-grid">
+                            <div class="detail-item">
+                                <small>Nomor Batch</small>
+                                <strong id="modalBatchKe">#1</strong>
+                            </div>
+                            <div class="detail-item">
+                                <small>Sesi ID</small>
+                                <strong id="modalBatchSesi">--</strong>
+                            </div>
+                            <div class="detail-item">
+                                <small>Target / Selesai</small>
+                                <strong id="modalBatchQty">-- / --</strong>
+                            </div>
+                            <div class="detail-item">
+                                <small>Hasil Botol OK / NG</small>
+                                <strong id="modalBatchQuality">-- OK / -- NG</strong>
+                            </div>
+                            <div class="detail-item">
+                                <small>Skor OEE</small>
+                                <strong id="modalBatchOee" style="color:var(--navy);">--%</strong>
+                            </div>
+                            <div class="detail-item">
+                                <small>Availability</small>
+                                <strong id="modalBatchAvail">--%</strong>
+                            </div>
+                            <div class="detail-item">
+                                <small>Performance</small>
+                                <strong id="modalBatchPerf">--%</strong>
+                            </div>
+                            <div class="detail-item">
+                                <small>Quality (Yield)</small>
+                                <strong id="modalBatchQual">--%</strong>
+                            </div>
+                            <div class="detail-item">
+                                <small>Batch MLT (Durasi)</small>
+                                <strong id="modalBatchMlt">-- s</strong>
+                            </div>
+                            <div class="detail-item">
+                                <small>Kapasitas Efektif</small>
+                                <strong id="modalBatchCap">-- bph</strong>
+                            </div>
+                            <div class="detail-item">
+                                <small>Waktu Mulai</small>
+                                <strong id="modalBatchStart">--:--:--</strong>
+                            </div>
+                            <div class="detail-item">
+                                <small>Waktu Selesai</small>
+                                <strong id="modalBatchEnd">--:--:--</strong>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn-sm" onclick="closeBatchModal()">Tutup</button>
+                    </div>
+                </div>
+            </div>
 
         </main>
 
