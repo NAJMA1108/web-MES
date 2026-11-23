@@ -1,6 +1,6 @@
 /* =========================================================================
    MPB-01 MES DASHBOARD JAVASCRIPT
-   Sesuai Spesifikasi API Key & Perhitungan Monitoring Web MES
+   Sesuai Spesifikasi API & Perhitungan Monitoring Web MES
    (OEE, MLT, WIP, Cycle Time, Kapasitas, Kualitas/SPC, Inventori, Reliabilitas)
 ========================================================================= */
 
@@ -28,7 +28,7 @@ const CANDIDATE_BASES = [
     "http://127.0.0.1:5500"
 ].filter(Boolean);
 
-// Spesifikasi Kapasitas Mesin (Halaman 4 & 7 PDF)
+// Spesifikasi Kapasitas Mesin
 const SPEC = {
     idealCycleTime: 4.1,               // 1.5s putar + 2.6s diam (s/botol)
     theoreticalCapacityHour: 878.05,   // 3600 / 4.1 = 878.05 botol/jam
@@ -37,10 +37,8 @@ const SPEC = {
         infeed: 30,                    // Peti meja infeed maks 30 botol
         turret: 10,                    // Slot turret rotary 10
         boxOk: 30,                     // Kapasitas kotak OK penampung
-        boxNg: 12,                     // Kapasitas wadah reject (peringatan jika >= 10)
-        rackMax: 100,                  // Kapasitas rak atas default
-    },
-    defaultTarget: 30,
+        boxNg: 12                      // Kapasitas wadah reject (peringatan jika >= 10)
+    }
 };
 
 let cfg = null;
@@ -81,7 +79,8 @@ function fmtDateTime(ms) {
 }
 
 function fmtDur(sec) {
-    sec = Math.round(sec || 0);
+    if (sec === null || sec === undefined || isNaN(sec)) return "--";
+    sec = Math.round(sec);
     const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
     return h ? `${h}j ${String(m).padStart(2, "0")}m` : `${m}m ${String(s).padStart(2, "0")}s`;
 }
@@ -195,14 +194,6 @@ function toggleTheme() {
 }
 $("themeToggle")?.addEventListener("click", toggleTheme);
 
-function inchTurret() {
-    alert("Inching Turret: Mengirim sinyal langkah stepper manual (Khusus Kontrol Operator).");
-}
-
-function resetTurret() {
-    alert("Reset Posisi Nol: Mengembalikan Homing Index Turret ke Slot 01.");
-}
-
 
 /* =================================
    2. PEMFORMAT DATA TABEL & BARIS
@@ -232,18 +223,18 @@ function fillDurationOf(b) {
 
 const bottleRowLive = b => [
     noOf(b),
-    "Slot " + (b.slot !== undefined ? b.slot : "--"),
+    "Slot " + (b.slot !== undefined && b.slot !== null ? b.slot : "--"),
     fillOf(b),
-    b.status || (b.level_isi >= SPEC.qcMinPassLevel ? "OK" : "TIDAK_PENUH"),
+    b.status || (typeof b.level_isi === "number" ? (b.level_isi >= SPEC.qcMinPassLevel ? "OK" : "TIDAK_PENUH") : "--"),
     cycleOf(b)
 ];
 
 const qualityRowTable = b => [
     noOf(b),
-    b.slot !== undefined ? b.slot : "--",
+    b.slot !== undefined && b.slot !== null ? b.slot : "--",
     fillOf(b),
-    b.bertutup ? "✓ Tertutup" : "✗ Terbuka",
-    b.status || (b.level_isi >= SPEC.qcMinPassLevel ? "OK" : "TIDAK_PENUH"),
+    typeof b.bertutup === "boolean" ? (b.bertutup ? "✓ Tertutup" : "✗ Terbuka") : "--",
+    b.status || (typeof b.level_isi === "number" ? (b.level_isi >= SPEC.qcMinPassLevel ? "OK" : "TIDAK_PENUH") : "--"),
     fillDurationOf(b),
     cycleOf(b),
     fmtTime(b.waktu_keluar || b.waktu_masuk || b.waktu)
@@ -306,7 +297,7 @@ function searchBottleLive() {
 }
 
 async function searchTrace() {
-    const rawVal = $("traceSearch")?.value.trim() || "";
+    const rawVal = ($("traceSearch")?.value || "").trim();
     const digits = rawVal.replace(/\D/g, "");
     const card = $("bottleDetailCard");
 
@@ -318,7 +309,6 @@ async function searchTrace() {
     }
 
     const num = Number(digits);
-    // Coba temukan di data lokal dulu
     const localMatch = lastBottles.find(b => Number(b.nomor || b.nomor_botol) === num);
 
     try {
@@ -336,13 +326,12 @@ async function searchTrace() {
             fillTable("traceTable", list.map(qualityRowTable), 8, "");
             setText("traceInfo", `Ditemukan data spesifik botol #${String(num).padStart(5, "0")}.`);
 
-            // Tampilkan Detail Card
             if (card) {
                 card.style.display = "block";
                 setText("cardBottleNo", `Botol #${String(num).padStart(5, "0")}`);
-                setText("cardSlot", `Slot ${bottle.slot !== undefined ? bottle.slot : "--"}`);
+                setText("cardSlot", `Slot ${bottle.slot !== undefined && bottle.slot !== null ? bottle.slot : "--"}`);
                 setText("cardFill", fillOf(bottle));
-                setText("cardCapping", bottle.bertutup ? "✓ Terpasang Rapat" : "✗ Tanpa Tutup");
+                setText("cardCapping", typeof bottle.bertutup === "boolean" ? (bottle.bertutup ? "✓ Terpasang Rapat" : "✗ Tanpa Tutup") : "--");
                 setText("cardFillingDuration", fillDurationOf(bottle));
                 setText("cardUnitMlt", cycleOf(bottle));
                 setText("cardBatch", `Batch #${bottle.batch_ke || 1}`);
@@ -351,8 +340,9 @@ async function searchTrace() {
 
                 const statusEl = $("cardBottleStatus");
                 if (statusEl) {
-                    statusEl.textContent = bottle.status || (bottle.level_isi >= SPEC.qcMinPassLevel ? "OK" : "TIDAK_PENUH");
-                    statusEl.className = "pill " + (bottle.status === "OK" || bottle.level_isi >= SPEC.qcMinPassLevel ? "ok" : "danger");
+                    const statusText = bottle.status || (typeof bottle.level_isi === "number" ? (bottle.level_isi >= SPEC.qcMinPassLevel ? "OK" : "TIDAK_PENUH") : "--");
+                    statusEl.textContent = statusText;
+                    statusEl.className = "pill " + (statusText === "OK" ? "ok" : statusText === "--" ? "" : "danger");
                 }
             }
         } else {
@@ -382,7 +372,7 @@ function renderMachineHeader(s, online, hasData, lastMs) {
     const sesi = s.sesi_id ? String(s.sesi_id) : "--";
     const batch = s.batch_ke || 1;
     const operatorMode = s.operator_mode || "Operasi";
-    const qcLast = s.status_qc_terakhir || (s.botol_reject > 0 ? "REJECT" : "OK");
+    const qcLast = s.status_qc_terakhir || (s.botol_reject > 0 ? "REJECT" : (hasData ? "OK" : "--"));
 
     setText("machineName", (cfg?.nama || cfg?.name || "ROTARY FILLING MPB-01").toUpperCase());
     setText("operatorName", s.pengguna || "Operator");
@@ -400,43 +390,30 @@ function renderMachineHeader(s, online, hasData, lastMs) {
     const tahap = hasData ? (s.tahap || "Operasi Normal") : "Menunggu telemetri";
     setText("activeProcess", tahap);
     setText("machineTask", s.operator_tugas || `Operator Mode: ${operatorMode}`);
-    setText("liveBatchBadge", `Batch: #${batch}`);
+    setText("liveBatchBadge", s.batch_ke ? `Batch: #${batch}` : "Batch: #--");
 
     const qcBadge = $("liveQcBadge");
     if (qcBadge) {
-        qcBadge.style.display = "inline-block";
-        qcBadge.textContent = `QC: ${qcLast}`;
-        qcBadge.style.background = qcLast === "OK" ? "#dcfce7" : "#fee2e2";
-        qcBadge.style.color = qcLast === "OK" ? "#15803d" : "#b91c1c";
+        if (s.status_qc_terakhir) {
+            qcBadge.style.display = "inline-block";
+            qcBadge.textContent = `QC: ${s.status_qc_terakhir}`;
+            qcBadge.style.background = s.status_qc_terakhir === "OK" ? "#dcfce7" : "#fee2e2";
+            qcBadge.style.color = s.status_qc_terakhir === "OK" ? "#15803d" : "#b91c1c";
+        } else {
+            qcBadge.style.display = "none";
+        }
     }
 
-    setText("lastQcStatusText", qcLast);
-    setText("batchNumber", `Sesi: ${sesi.slice(0, 12)} · Batch #${batch}`);
-    setText("downtimeMachineStatus", `Mesin: ${mode}`);
-    setColor("downtimeMachineStatus", statusColor);
+    setText("lastQcStatusText", s.status_qc_terakhir || "--");
+    setText("batchNumber", `Sesi: ${sesi.slice(0, 12)} · Batch #${s.batch_ke || "--"}`);
 
     // MCB Status
-    const mcb = s.mcb || {};
+    const mcb = s.mcb;
     [["mcbMain", "utama", "Utama"], ["mcbMachine", "mesin", "Mesin"],
     ["mcbControl", "kontrol", "Kontrol"], ["mcbLamp", "lampu", "Lampu"]].forEach(([id, key, name]) => {
-        const on = mcb[key];
+        const on = mcb ? mcb[key] : undefined;
         setText(id, `● ${on === undefined ? "--" : on ? "ON" : "OFF"} ${name}`);
-        setColor(id, on ? GREEN : on === false ? RED : "");
-    });
-
-    // GPIO Digital Twin
-    const gpio = s.gpio || {};
-    const GPIO_MAP = [["Step", "step"], ["Dir", "dir"], ["Enable", "en"], ["Pump", "pompa"],
-    ["Buzzer", "buzzer"], ["IR", "ir"], ["Start", "start"], ["Limit", "limit"]];
-    GPIO_MAP.forEach(([name, key]) => {
-        const on = !!gpio[key];
-        setText("gpio" + name, hasData ? (on ? "ON" : "OFF") : "MENUNGGU DATA");
-        const ind = $("indicator" + name);
-        if (ind) {
-            ind.classList.toggle("inactive", !on);
-            ind.classList.toggle("active", on);
-            ind.style.background = on ? GREEN : "";
-        }
+        setColor(id, on === true ? GREEN : on === false ? RED : GREY);
     });
 
     // Peringatan sistem (Alert Banner)
@@ -444,7 +421,7 @@ function renderMachineHeader(s, online, hasData, lastMs) {
     const alertMsg = $("alertMessage");
     const boxNg = s.isi_kotak_reject || 0;
     const isStarving = !!s.sedang_starving;
-    const rackLow = (s.sisa_stok_rak_atas !== undefined && s.sisa_stok_rak_atas <= 2);
+    const rackLow = (typeof s.sisa_stok_rak_atas === "number" && s.sisa_stok_rak_atas <= 2);
 
     if (alertBanner && alertMsg) {
         if (boxNg >= 10) {
@@ -466,111 +443,200 @@ function renderMachineHeader(s, online, hasData, lastMs) {
 }
 
 function renderTurretVisual(s, hasData) {
-    const angle = hasData ? Number(s.sudut_turret_deg) || 0 : null;
-    setText("turretAngle", angle === null ? "--°" : Math.round(angle) + "°");
-    setText("turretAngleHeader", angle === null ? "0°" : Math.round(angle) + "°");
+    const angle = (hasData && typeof s.sudut_turret_deg === "number") ? Number(s.sudut_turret_deg) : null;
     setText("turretPitch", `Sudut: ${angle !== null ? Math.round(angle) : "--"}°`);
-    setText("turretSync", hasData ? "SINKRON DENGAN SERVO" : "MENUNGGU DATA");
-
-    const activeSlot = angle === null ? 0 : (Math.round((angle % 360) / 36) % 10) + 1;
-    for (let i = 1; i <= 10; i++) {
-        const el = document.querySelector(".station.s" + i);
-        if (!el) continue;
-        el.classList.toggle("active-station", i === activeSlot);
-        // Bila ada WIP di turret, tandai slot terisi
-        const wipInTurret = s.wip_turret || 0;
-        el.classList.toggle("filled", i <= wipInTurret);
-    }
 }
 
 function renderWipAndBuffers(s, wipData) {
-    const sisaPeti = s.sisa_peti ?? (wipData?.sisa_peti ?? 0);
-    const wipTurret = s.wip_turret ?? (wipData?.wip_turret ?? 0);
-    const isiKotak = s.isi_kotak ?? (wipData?.isi_kotak ?? 0);
-    const isiKotakReject = s.isi_kotak_reject ?? (wipData?.isi_kotak_reject ?? 0);
-    const totalWip = wipData?.wip_total ?? (sisaPeti + wipTurret + isiKotak);
+    const hasPeti = typeof s.sisa_peti === "number" || typeof wipData?.sisa_peti === "number";
+    const sisaPeti = s.sisa_peti ?? wipData?.sisa_peti ?? null;
+
+    const hasTurret = typeof s.wip_turret === "number" || typeof wipData?.wip_turret === "number";
+    const wipTurret = s.wip_turret ?? wipData?.wip_turret ?? null;
+
+    const hasBoxOk = typeof s.isi_kotak === "number" || typeof wipData?.isi_kotak === "number";
+    const isiKotak = s.isi_kotak ?? wipData?.isi_kotak ?? null;
+
+    const hasBoxNg = typeof s.isi_kotak_reject === "number" || typeof wipData?.isi_kotak_reject === "number";
+    const isiKotakReject = s.isi_kotak_reject ?? wipData?.isi_kotak_reject ?? null;
+
+    const totalWip = typeof wipData?.wip_total === "number"
+        ? wipData.wip_total
+        : (typeof s.wip_total === "number"
+            ? s.wip_total
+            : (hasPeti && hasTurret && hasBoxOk ? (sisaPeti || 0) + (wipTurret || 0) + (isiKotak || 0) : null));
 
     // Live Top Card WIP
-    setText("liveWipTotal", totalWip);
-    const wipPct = Math.round((totalWip / 52) * 100);
-    setWidth("liveWipProgress", wipPct);
-    setText("liveWipPercentage", `${wipPct}% Buffer`);
-    setText("liveWipStatus", wipData?.warning ? "⚠️ Bottleneck Buffer" : "Aliran Normal");
+    if (totalWip !== null) {
+        setText("liveWipTotal", totalWip);
+        const wipPct = Math.round((totalWip / 52) * 100);
+        setWidth("liveWipProgress", wipPct);
+        setText("liveWipPercentage", `${wipPct}% Buffer`);
+        setText("liveWipStatus", wipData?.warning ? "⚠️ Bottleneck Buffer" : "Aliran Normal");
+    } else {
+        setText("liveWipTotal", "--");
+        setWidth("liveWipProgress", 0);
+        setText("liveWipPercentage", "--% Buffer");
+        setText("liveWipStatus", "Menunggu data");
+    }
 
     // 1. Infeed Station
-    setText("palletRemaining", sisaPeti);
-    const infeedPct = Math.round((sisaPeti / SPEC.bufferCapacity.infeed) * 100);
-    setWidth("palletProgress", infeedPct);
-    setText("palletPercentage", `${infeedPct}% sisa (${sisaPeti}/30 botol)`);
-    setText("infeedStatus", sisaPeti === 0 ? "Starving" : "Normal");
+    if (hasPeti && sisaPeti !== null) {
+        setText("palletRemaining", sisaPeti);
+        const infeedPct = Math.round((sisaPeti / SPEC.bufferCapacity.infeed) * 100);
+        setWidth("palletProgress", infeedPct);
+        setText("palletPercentage", `${infeedPct}% sisa (${sisaPeti}/30 botol)`);
+        setText("infeedStatus", sisaPeti === 0 ? "Starving" : "Normal");
+    } else {
+        setText("palletRemaining", "--");
+        setWidth("palletProgress", 0);
+        setText("palletPercentage", "--% sisa bahan");
+        setText("infeedStatus", "Menunggu data");
+    }
 
     // 2. Turret Rotary
-    setText("liveTurretWip", wipTurret);
-    const turretPct = Math.round((wipTurret / SPEC.bufferCapacity.turret) * 100);
-    setWidth("turretWipProgress", turretPct);
-    setText("turretWipBadge", `${wipTurret} Botol Aktif`);
+    if (hasTurret && wipTurret !== null) {
+        setText("liveTurretWip", wipTurret);
+        const turretPct = Math.round((wipTurret / SPEC.bufferCapacity.turret) * 100);
+        setWidth("turretWipProgress", turretPct);
+        setText("turretWipBadge", `${wipTurret} Botol Aktif`);
+    } else {
+        setText("liveTurretWip", "--");
+        setWidth("turretWipProgress", 0);
+        setText("turretWipBadge", "10 Slot");
+    }
 
     // 3. Kotak OK Penampung
-    setText("boxFilled", isiKotak);
-    const boxOkPct = Math.round((isiKotak / SPEC.bufferCapacity.boxOk) * 100);
-    setWidth("boxProgress", boxOkPct);
-    const boxNum = Math.floor((s.botol_ok || s.botol_selesai || 0) / SPEC.bufferCapacity.boxOk) + 1;
-    setText("boxPercentage", `${boxOkPct}% terisi (Kotak #${boxNum})`);
+    if (hasBoxOk && isiKotak !== null) {
+        setText("boxFilled", isiKotak);
+        const boxOkPct = Math.round((isiKotak / SPEC.bufferCapacity.boxOk) * 100);
+        setWidth("boxProgress", boxOkPct);
+        const okTotal = s.botol_ok ?? s.botol_selesai;
+        const boxNum = typeof okTotal === "number" ? Math.floor(okTotal / SPEC.bufferCapacity.boxOk) + 1 : 1;
+        setText("boxPercentage", `${boxOkPct}% terisi (Kotak #${boxNum})`);
+    } else {
+        setText("boxFilled", "--");
+        setWidth("boxProgress", 0);
+        setText("boxPercentage", "--% terisi");
+    }
 
     // 4. Wadah Reject (NG)
-    setText("liveBoxNg", isiKotakReject);
-    const boxNgPct = Math.round((isiKotakReject / SPEC.bufferCapacity.boxNg) * 100);
-    setWidth("boxNgProgress", boxNgPct);
-    const ngEl = $("stationBoxNg");
-    if (ngEl) ngEl.classList.toggle("danger-station", isiKotakReject >= 10);
-    setText("boxNgStatus", isiKotakReject >= 10 ? "⚠️ HAMPIR PENUH!" : `${isiKotakReject}/12 botol`);
+    if (hasBoxNg && isiKotakReject !== null) {
+        setText("liveBoxNg", isiKotakReject);
+        const boxNgPct = Math.round((isiKotakReject / SPEC.bufferCapacity.boxNg) * 100);
+        setWidth("boxNgProgress", boxNgPct);
+        const ngEl = $("stationBoxNg");
+        if (ngEl) ngEl.classList.toggle("danger-station", isiKotakReject >= 10);
+        setText("boxNgStatus", isiKotakReject >= 10 ? "⚠️ HAMPIR PENUH!" : `${isiKotakReject}/12 botol`);
+    } else {
+        setText("liveBoxNg", "--");
+        setWidth("boxNgProgress", 0);
+        setText("boxNgStatus", "Menunggu data");
+    }
 }
 
 function calculateOeeAndLosses(s, oeeData, sum, dt) {
-    const botolSelesai = s.botol_selesai ?? (sum?.jumlah_botol ?? 0);
-    const botolOk = s.botol_ok ?? (sum?.botol_ok ?? Math.max(0, botolSelesai - (s.botol_reject || 0)));
-    const botolReject = s.botol_reject ?? (sum?.botol_gagal ?? 0);
+    const botolSelesai = typeof s.botol_selesai === "number"
+        ? s.botol_selesai
+        : (typeof sum?.jumlah_botol === "number" ? sum.jumlah_botol : null);
+    const botolOk = typeof s.botol_ok === "number"
+        ? s.botol_ok
+        : (typeof sum?.botol_ok === "number"
+            ? sum.botol_ok
+            : (botolSelesai !== null && typeof s.botol_reject === "number" ? Math.max(0, botolSelesai - s.botol_reject) : null));
+    const botolReject = typeof s.botol_reject === "number"
+        ? s.botol_reject
+        : (typeof sum?.botol_gagal === "number"
+            ? sum.botol_gagal
+            : (botolSelesai !== null && botolOk !== null ? Math.max(0, botolSelesai - botolOk) : null));
 
-    const plannedTime = s.planned_production_time || s.batch_cycle_time || 240.0;
-    const setupTime = s.setup_time || 15.0;
-    const starvationTime = s.starvation_downtime || 5.0;
-    const downtimeUnplanned = s.downtime_unplanned ?? (dt?.total_durasi_downtime_detik ?? 0.0);
-    const packagingTime = s.packaging_time || 50.0;
+    const plannedTime = typeof oeeData?.planned_time_detik === "number"
+        ? oeeData.planned_time_detik
+        : (typeof s.planned_production_time === "number"
+            ? s.planned_production_time
+            : (typeof s.batch_cycle_time === "number" ? s.batch_cycle_time : null));
 
-    // Production time: waktu efektif turret berjalan
-    let operatingTime = s.production_time;
-    if (operatingTime === undefined || operatingTime === null || operatingTime <= 0) {
+    const setupTime = typeof oeeData?.losses?.setup === "number"
+        ? oeeData.losses.setup
+        : (typeof s.setup_time === "number" ? s.setup_time : null);
+
+    const starvationTime = typeof oeeData?.losses?.starvation === "number"
+        ? oeeData.losses.starvation
+        : (typeof s.starvation_downtime === "number" ? s.starvation_downtime : null);
+
+    const packagingTime = typeof oeeData?.losses?.packaging === "number"
+        ? oeeData.losses.packaging
+        : (typeof s.packaging_time === "number" ? s.packaging_time : null);
+
+    const downtimeUnplanned = typeof oeeData?.losses?.breakdown === "number"
+        ? oeeData.losses.breakdown
+        : (typeof s.downtime_unplanned === "number"
+            ? s.downtime_unplanned
+            : (typeof dt?.total_durasi_downtime_detik === "number" ? dt.total_durasi_downtime_detik : null));
+
+    // Operating time: dari API oee, atau s.production_time, atau dikalkulasi jika SEMUA komponen tersedia
+    let operatingTime = typeof oeeData?.operating_time_detik === "number"
+        ? oeeData.operating_time_detik
+        : (typeof s.production_time === "number" ? s.production_time : null);
+
+    if (operatingTime === null && plannedTime !== null && downtimeUnplanned !== null && setupTime !== null && starvationTime !== null && packagingTime !== null) {
         operatingTime = Math.max(0, plannedTime - (downtimeUnplanned + setupTime + starvationTime + packagingTime));
     }
 
     // Availability = operating_time / planned_production_time
-    let availPct = oeeData?.availability_pct ?? (plannedTime > 0 ? (operatingTime / plannedTime) * 100 : 0);
+    let availPct = null;
+    if (typeof oeeData?.availability_pct === "number") {
+        availPct = oeeData.availability_pct;
+    } else if (operatingTime !== null && plannedTime !== null && plannedTime > 0) {
+        availPct = Math.min(100, Math.max(0, (operatingTime / plannedTime) * 100));
+    }
+
     // Performance = (ideal_cycle_time * botol_selesai) / operating_time
-    let perfPct = oeeData?.performance_pct ?? (operatingTime > 0 ? ((SPEC.idealCycleTime * botolSelesai) / operatingTime) * 100 : 0);
+    let perfPct = null;
+    if (typeof oeeData?.performance_pct === "number") {
+        perfPct = oeeData.performance_pct;
+    } else if (operatingTime !== null && operatingTime > 0 && botolSelesai !== null) {
+        perfPct = Math.min(120, Math.max(0, ((SPEC.idealCycleTime * botolSelesai) / operatingTime) * 100));
+    }
+
     // Quality = botol_ok / botol_selesai
-    let qualPct = oeeData?.quality_pct ?? (s.first_pass_yield ?? (botolSelesai > 0 ? (botolOk / botolSelesai) * 100 : 100));
+    let qualPct = null;
+    if (typeof oeeData?.quality_pct === "number") {
+        qualPct = oeeData.quality_pct;
+    } else if (typeof s.first_pass_yield === "number") {
+        qualPct = Math.min(100, Math.max(0, s.first_pass_yield));
+    } else if (botolSelesai !== null && botolOk !== null && botolSelesai > 0) {
+        qualPct = Math.min(100, Math.max(0, (botolOk / botolSelesai) * 100));
+    } else if (botolSelesai === 0) {
+        qualPct = 100;
+    }
 
     // OEE = A * P * Q
-    let oeePct = oeeData?.oee_pct ?? ((availPct / 100) * (perfPct / 100) * (qualPct / 100) * 100);
+    let oeePct = null;
+    if (typeof oeeData?.oee_pct === "number") {
+        oeePct = oeeData.oee_pct;
+    } else if (availPct !== null && perfPct !== null && qualPct !== null) {
+        oeePct = Math.min(100, Math.max(0, (availPct / 100) * (perfPct / 100) * (qualPct / 100) * 100));
+    }
 
-    // Batasi maksimum rasional
-    availPct = Math.min(100, Math.max(0, availPct));
-    perfPct = Math.min(120, Math.max(0, perfPct));
-    qualPct = Math.min(100, Math.max(0, qualPct));
-    oeePct = Math.min(100, Math.max(0, oeePct));
-
-    // Six Big Losses
-    const lossBreakdownVal = downtimeUnplanned;
-    const lossSetupVal = setupTime;
-    const lossStarvingWaitVal = starvationTime + packagingTime;
-    const lossSpeedVal = Math.max(0, operatingTime - (SPEC.idealCycleTime * botolSelesai));
-    const lossQualityVal = botolReject * SPEC.idealCycleTime;
+    // Six Big Losses: hanya dari API atau formula jika data riil tersedia
+    const lossBreakdownVal = typeof oeeData?.losses?.breakdown === "number" ? oeeData.losses.breakdown : downtimeUnplanned;
+    const lossSetupVal = typeof oeeData?.losses?.setup === "number" ? oeeData.losses.setup : setupTime;
+    const lossStarvingWaitVal = typeof oeeData?.losses?.starving_packaging === "number"
+        ? oeeData.losses.starving_packaging
+        : (starvationTime !== null && packagingTime !== null ? starvationTime + packagingTime : (starvationTime !== null ? starvationTime : (packagingTime !== null ? packagingTime : null)));
+    const lossSpeedVal = typeof oeeData?.losses?.speed_loss === "number"
+        ? oeeData.losses.speed_loss
+        : (operatingTime !== null && botolSelesai !== null ? Math.max(0, operatingTime - (SPEC.idealCycleTime * botolSelesai)) : null);
+    const lossQualityVal = typeof oeeData?.losses?.quality_loss === "number"
+        ? oeeData.losses.quality_loss
+        : (botolReject !== null ? botolReject * SPEC.idealCycleTime : null);
 
     return {
-        availPct: Number(availPct.toFixed(1)),
-        perfPct: Number(perfPct.toFixed(1)),
-        qualPct: Number(qualPct.toFixed(1)),
-        oeePct: Number(oeePct.toFixed(1)),
+        availPct: availPct !== null ? Number(availPct.toFixed(1)) : null,
+        perfPct: perfPct !== null ? Number(perfPct.toFixed(1)) : null,
+        qualPct: qualPct !== null ? Number(qualPct.toFixed(1)) : null,
+        oeePct: oeePct !== null ? Number(oeePct.toFixed(1)) : null,
         plannedTime,
         operatingTime,
         setupTime,
@@ -589,208 +655,305 @@ function calculateOeeAndLosses(s, oeeData, sum, dt) {
 }
 
 function renderProductionAndOee(s, oeeCalc, capData, leadData) {
-    const target = s.target_qty || SPEC.defaultTarget;
+    const target = typeof s.target_qty === "number"
+        ? s.target_qty
+        : (allBatches.length > 0 && typeof allBatches[0].target_qty === "number" ? allBatches[0].target_qty : null);
     const total = oeeCalc.botolSelesai;
     const good = oeeCalc.botolOk;
-    const finishedBoxes = s.kardus_selesai || Math.floor(good / 30);
-    const packedBottles = s.total_dikemas || (finishedBoxes * 30);
-    const progPct = pct(total, target);
+
+    const finishedBoxes = typeof s.kardus_selesai === "number"
+        ? s.kardus_selesai
+        : (typeof good === "number" ? Math.floor(good / 30) : null);
+    const packedBottles = typeof s.total_dikemas === "number"
+        ? s.total_dikemas
+        : (finishedBoxes !== null ? finishedBoxes * 30 : null);
+
+    const hasTarget = target !== null && target > 0;
+    const progPct = (hasTarget && total !== null) ? pct(total, target) : null;
 
     // Live Card OEE
-    setText("liveOee", oeeCalc.oeePct);
-    setText("liveOeeComponents", `A: ${oeeCalc.availPct}% | P: ${oeeCalc.perfPct}% | Q: ${oeeCalc.qualPct}%`);
+    setText("liveOee", oeeCalc.oeePct !== null ? oeeCalc.oeePct : "--");
+    setText("liveOeeComponents",
+        `A: ${oeeCalc.availPct !== null ? oeeCalc.availPct + "%" : "--%"} | ` +
+        `P: ${oeeCalc.perfPct !== null ? oeeCalc.perfPct + "%" : "--%"} | ` +
+        `Q: ${oeeCalc.qualPct !== null ? oeeCalc.qualPct + "%" : "--%"}`
+    );
 
     // Live Card Production
-    setText("totalProduction", total);
-    setText("productionTarget", target);
-    setText("productionPercentage", `Kemajuan: ${progPct}%`);
+    setText("totalProduction", show(total));
+    setText("productionTarget", show(target));
+    setText("productionPercentage", progPct !== null ? `Kemajuan: ${progPct}%` : "Kemajuan: --%");
 
     // Page Produksi Cards
-    setText("prodTotal", total);
-    setText("prodTarget", target);
-    setText("prodRemaining", Math.max(0, target - total));
-    setText("prodPercentage", `${progPct}%`);
-    setText("prodPacked", packedBottles);
-    setText("prodBoxesFinished", `${finishedBoxes} Kardus Jadi`);
+    setText("prodTotal", show(total));
+    setText("prodTarget", show(target));
+    setText("prodRemaining", (hasTarget && total !== null) ? Math.max(0, target - total) : "--");
+    setText("prodPercentage", progPct !== null ? `${progPct}%` : "--%");
+    setText("prodPacked", show(packedBottles));
+    setText("prodBoxesFinished", finishedBoxes !== null ? `${finishedBoxes} Kardus Jadi` : "-- Kardus Jadi");
 
     // Cycle Time (Actual vs Ideal)
-    const actualCt = s.actual_cycle_time_avg || (total > 0 ? oeeCalc.operatingTime / total : SPEC.idealCycleTime);
-    setText("actualCycleDisplay", actualCt ? actualCt.toFixed(1) + " s" : "4.1 s");
-    setText("prodActualCycle", actualCt ? actualCt.toFixed(2) : "4.1");
-    const diffCt = actualCt - SPEC.idealCycleTime;
-    setText("prodCycleDiff", diffCt > 0 ? `+${diffCt.toFixed(2)}s (Loss)` : "Optimal (0s)");
+    const actualCt = typeof capData?.actual_cycle_time_avg === "number"
+        ? capData.actual_cycle_time_avg
+        : (typeof s.actual_cycle_time_avg === "number" && s.actual_cycle_time_avg > 0
+            ? s.actual_cycle_time_avg
+            : (total !== null && total > 0 && oeeCalc.operatingTime !== null ? oeeCalc.operatingTime / total : null));
+
+    setText("actualCycleDisplay", actualCt !== null ? actualCt.toFixed(1) + " s" : "-- s");
+    setText("prodActualCycle", actualCt !== null ? actualCt.toFixed(2) : "--");
+    if (actualCt !== null) {
+        const diffCt = actualCt - SPEC.idealCycleTime;
+        setText("prodCycleDiff", diffCt > 0 ? `+${diffCt.toFixed(2)}s (Loss)` : "Optimal (0s)");
+    } else {
+        setText("prodCycleDiff", "Deviasi: --");
+    }
 
     // Kapasitas Produksi
-    const effectiveCap = capData?.kapasitas_efektif_per_jam ||
-        (s.batch_cycle_time ? (target / s.batch_cycle_time) * 3600 : 450);
-    const capUtil = capData?.utilisasi_kapasitas_pct ||
-        ((effectiveCap / SPEC.theoreticalCapacityHour) * 100);
-    setText("prodEffectiveCapacity", Math.round(effectiveCap));
-    setText("prodCapacityUtil", `Utilisasi: ${Math.round(capUtil)}%`);
-    setText("productionRate", `${Math.round(effectiveCap)} bph`);
+    const effectiveCap = typeof capData?.kapasitas_efektif_per_jam === "number"
+        ? capData.kapasitas_efektif_per_jam
+        : (typeof s.production_capacity_per_hour === "number"
+            ? s.production_capacity_per_hour
+            : (typeof s.batch_cycle_time === "number" && hasTarget ? (target / s.batch_cycle_time) * 3600 : null));
+
+    const capUtil = typeof capData?.utilisasi_kapasitas_pct === "number"
+        ? capData.utilisasi_kapasitas_pct
+        : (effectiveCap !== null ? (effectiveCap / SPEC.theoreticalCapacityHour) * 100 : null);
+
+    setText("prodEffectiveCapacity", effectiveCap !== null ? Math.round(effectiveCap) : "--");
+    setText("prodCapacityUtil", capUtil !== null ? `Utilisasi: ${Math.round(capUtil)}%` : "Utilisasi: --%");
+    setText("productionRate", effectiveCap !== null ? `${Math.round(effectiveCap)} bph` : "-- bph");
 
     // OEE Cards
-    setText("oeeScore", `${oeeCalc.oeePct}%`);
-    setText("oeeAvailability", `${oeeCalc.availPct}%`);
-    setText("oeePerformance", `${oeeCalc.perfPct}%`);
-    setText("oeeQuality", `${oeeCalc.qualPct}%`);
+    setText("oeeScore", oeeCalc.oeePct !== null ? `${oeeCalc.oeePct}%` : "--%");
+    setText("oeeAvailability", oeeCalc.availPct !== null ? `${oeeCalc.availPct}%` : "--%");
+    setText("oeePerformance", oeeCalc.perfPct !== null ? `${oeeCalc.perfPct}%` : "--%");
+    setText("oeeQuality", oeeCalc.qualPct !== null ? `${oeeCalc.qualPct}%` : "--%");
     const oeeBadge = $("oeeScoreBadge");
     if (oeeBadge) {
-        oeeBadge.textContent = oeeCalc.oeePct >= 85 ? "🌟 World Class (≥85%)" : oeeCalc.oeePct >= 60 ? "✓ Beroperasi Baik" : "⚠️ Perlu Perbaikan";
+        oeeBadge.textContent = oeeCalc.oeePct !== null
+            ? (oeeCalc.oeePct >= 85 ? "🌟 World Class (≥85%)" : oeeCalc.oeePct >= 60 ? "✓ Beroperasi Baik" : "⚠️ Perlu Perbaikan")
+            : "Data tidak tersedia";
     }
 
     // Waktu Kumulatif
-    setText("timePlanned", `${Math.round(oeeCalc.plannedTime)} s`);
-    setText("timeOperating", `${Math.round(oeeCalc.operatingTime)} s`);
-    setText("timeSetup", `${Math.round(oeeCalc.setupTime)} s`);
-    setText("timeStarvation", `${Math.round(oeeCalc.starvationTime)} s`);
-    setText("timePackaging", `${Math.round(oeeCalc.packagingTime)} s`);
-    setText("timeDowntime", `${Math.round(oeeCalc.downtimeUnplanned)} s`);
+    setText("timePlanned", oeeCalc.plannedTime !== null ? `${Math.round(oeeCalc.plannedTime)} s` : "--");
+    setText("timeOperating", oeeCalc.operatingTime !== null ? `${Math.round(oeeCalc.operatingTime)} s` : "--");
+    setText("timeSetup", oeeCalc.setupTime !== null ? `${Math.round(oeeCalc.setupTime)} s` : "--");
+    setText("timeStarvation", oeeCalc.starvationTime !== null ? `${Math.round(oeeCalc.starvationTime)} s` : "--");
+    setText("timePackaging", oeeCalc.packagingTime !== null ? `${Math.round(oeeCalc.packagingTime)} s` : "--");
+    setText("timeDowntime", oeeCalc.downtimeUnplanned !== null ? `${Math.round(oeeCalc.downtimeUnplanned)} s` : "--");
 
     // Six Big Losses
-    setText("lossBreakdown", `${Math.round(oeeCalc.lossBreakdownVal)} s`);
-    setText("lossSetup", `${Math.round(oeeCalc.lossSetupVal)} s`);
-    setText("lossStarvingPackaging", `${Math.round(oeeCalc.lossStarvingWaitVal)} s`);
-    setText("lossSpeed", `${Math.round(oeeCalc.lossSpeedVal)} s`);
-    setText("lossQuality", `${oeeCalc.lossQualityVal.toFixed(1)} s`);
+    setText("lossBreakdown", oeeCalc.lossBreakdownVal !== null ? `${Math.round(oeeCalc.lossBreakdownVal)} s` : "--");
+    setText("lossSetup", oeeCalc.lossSetupVal !== null ? `${Math.round(oeeCalc.lossSetupVal)} s` : "--");
+    setText("lossStarvingPackaging", oeeCalc.lossStarvingWaitVal !== null ? `${Math.round(oeeCalc.lossStarvingWaitVal)} s` : "--");
+    setText("lossSpeed", oeeCalc.lossSpeedVal !== null ? `${Math.round(oeeCalc.lossSpeedVal)} s` : "--");
+    setText("lossQuality", oeeCalc.lossQualityVal !== null ? `${oeeCalc.lossQualityVal.toFixed(1)} s` : "--");
 
     // Lead Time (MLT)
-    const unitMlt = leadData?.unit_mlt_avg_detik || (s.actual_cycle_time_avg ? s.actual_cycle_time_avg * 6 : 28.1);
-    const fillDur = leadData?.durasi_isi_avg_detik || 0.72;
-    const batchMlt = leadData?.batch_mlt_avg_detik || s.batch_cycle_time || s.mlt_batch || 240.0;
-    setText("mltUnitAvg", `${unitMlt.toFixed(1)} s`);
-    setText("mltFillingAvg", `${fillDur.toFixed(2)} s`);
-    setText("mltBatchAvg", `${Math.round(batchMlt)} s`);
-    setText("mltBottlesCount", `${leadData?.total_botol_dianalisis || total} botol`);
+    const unitMlt = typeof leadData?.unit_mlt_avg_detik === "number"
+        ? leadData.unit_mlt_avg_detik
+        : (typeof s.actual_cycle_time_avg === "number" && s.actual_cycle_time_avg > 0 ? s.actual_cycle_time_avg * 6 : null);
+    const fillDur = typeof leadData?.durasi_isi_avg_detik === "number" ? leadData.durasi_isi_avg_detik : null;
+    const batchMlt = typeof leadData?.batch_mlt_avg_detik === "number"
+        ? leadData.batch_mlt_avg_detik
+        : (typeof s.batch_cycle_time === "number" ? s.batch_cycle_time : (typeof s.mlt_batch === "number" ? s.mlt_batch : null));
+    const bottlesCount = typeof leadData?.total_botol_dianalisis === "number" ? leadData.total_botol_dianalisis : total;
+
+    setText("mltUnitAvg", unitMlt !== null ? `${unitMlt.toFixed(1)} s` : "--");
+    setText("mltFillingAvg", fillDur !== null ? `${fillDur.toFixed(2)} s` : "--");
+    setText("mltBatchAvg", batchMlt !== null ? `${Math.round(batchMlt)} s` : "--");
+    setText("mltBottlesCount", bottlesCount !== null ? `${bottlesCount} botol` : "--");
 }
 
 function renderQualityAndSpc(s, qualData, sum, bottles) {
-    const total = s.botol_selesai ?? (qualData?.total_botol ?? bottles.length);
-    const good = s.botol_ok ?? (qualData?.botol_ok ?? bottles.filter(b => b.status === "OK" || b.level_isi >= SPEC.qcMinPassLevel).length);
-    const bad = s.botol_reject ?? (qualData?.botol_reject ?? (total - good));
-    const fpy = qualData?.first_pass_yield_pct ?? (s.first_pass_yield ?? (total > 0 ? (good / total) * 100 : 100));
+    const total = typeof qualData?.total_botol === "number"
+        ? qualData.total_botol
+        : (typeof s.botol_selesai === "number" ? s.botol_selesai : (bottles.length ? bottles.length : null));
+    const good = typeof qualData?.botol_ok === "number"
+        ? qualData.botol_ok
+        : (typeof s.botol_ok === "number"
+            ? s.botol_ok
+            : (bottles.length ? bottles.filter(b => b.status === "OK" || b.level_isi >= SPEC.qcMinPassLevel).length : null));
+    const bad = typeof qualData?.botol_reject === "number"
+        ? qualData.botol_reject
+        : (typeof s.botol_reject === "number"
+            ? s.botol_reject
+            : (total !== null && good !== null ? Math.max(0, total - good) : null));
+    const fpy = typeof qualData?.first_pass_yield_pct === "number"
+        ? qualData.first_pass_yield_pct
+        : (typeof s.first_pass_yield === "number"
+            ? s.first_pass_yield
+            : (total !== null && total > 0 && good !== null ? (good / total) * 100 : null));
 
     // Live Card Quality
-    setText("qualityYield", fpy.toFixed(1));
-    setText("rejectCount", `Reject: ${bad}`);
-    setText("volumeTolerance", bad === 0 ? "QC 100% Lulus" : `${bad} botol cacat`);
+    setText("qualityYield", fpy !== null ? fpy.toFixed(1) : "--");
+    setText("rejectCount", bad !== null ? `Reject: ${bad}` : "Reject: --");
+    setText("volumeTolerance", bad !== null ? (bad === 0 ? "QC 100% Lulus" : `${bad} botol cacat`) : "Menunggu data");
 
     // Page Kualitas KPI
-    setText("qualityPageYield", `${fpy.toFixed(1)}%`);
-    setText("qualityGood", good);
-    setText("qualityGoodPct", total > 0 ? `${Math.round((good / total) * 100)}% dari total` : "100%");
-    setText("qualityReject", bad);
-    setText("qualityRejectPct", total > 0 ? `${Math.round((bad / total) * 100)}% cacat` : "0%");
+    setText("qualityPageYield", fpy !== null ? `${fpy.toFixed(1)}%` : "--%");
+    setText("qualityGood", show(good));
+    setText("qualityGoodPct", (total !== null && total > 0 && good !== null) ? `${Math.round((good / total) * 100)}% dari total` : "--%");
+    setText("qualityReject", show(bad));
+    setText("qualityRejectPct", (total !== null && total > 0 && bad !== null) ? `${Math.round((bad / total) * 100)}% cacat` : "--%");
 
     // Pareto Defect
-    const underfill = s.reject_isi_kurang ?? (qualData?.pareto_reject?.TIDAK_PENUH ?? 0);
-    const noCap = s.reject_tanpa_tutup ?? (qualData?.pareto_reject?.TANPA_TUTUP ?? 0);
-    setText("paretoUnderfillCount", `${underfill} unit`);
-    setText("paretoNoCapCount", `${noCap} unit`);
-    const underfillPct = bad > 0 ? Math.round((underfill / bad) * 100) : 0;
-    const noCapPct = bad > 0 ? Math.round((noCap / bad) * 100) : 0;
-    setWidth("paretoUnderfillProgress", underfillPct);
-    setWidth("paretoNoCapProgress", noCapPct);
-    setText("paretoUnderfillPct", `${underfillPct}% dari total reject`);
-    setText("paretoNoCapPct", `${noCapPct}% dari total reject`);
+    const underfill = typeof qualData?.pareto_reject?.TIDAK_PENUH === "number"
+        ? qualData.pareto_reject.TIDAK_PENUH
+        : (typeof s.reject_isi_kurang === "number" ? s.reject_isi_kurang : null);
+    const noCap = typeof qualData?.pareto_reject?.TANPA_TUTUP === "number"
+        ? qualData.pareto_reject.TANPA_TUTUP
+        : (typeof s.reject_tanpa_tutup === "number" ? s.reject_tanpa_tutup : null);
 
-    // SPC Level Isi
+    if (underfill !== null) {
+        setText("paretoUnderfillCount", `${underfill} unit`);
+        const underfillPct = (bad !== null && bad > 0) ? Math.round((underfill / bad) * 100) : 0;
+        setWidth("paretoUnderfillProgress", underfillPct);
+        setText("paretoUnderfillPct", (bad !== null && bad > 0) ? `${underfillPct}% dari total reject` : "0% dari total reject");
+    } else {
+        setText("paretoUnderfillCount", "--");
+        setWidth("paretoUnderfillProgress", 0);
+        setText("paretoUnderfillPct", "Data tidak tersedia");
+    }
+
+    if (noCap !== null) {
+        setText("paretoNoCapCount", `${noCap} unit`);
+        const noCapPct = (bad !== null && bad > 0) ? Math.round((noCap / bad) * 100) : 0;
+        setWidth("paretoNoCapProgress", noCapPct);
+        setText("paretoNoCapPct", (bad !== null && bad > 0) ? `${noCapPct}% dari total reject` : "0% dari total reject");
+    } else {
+        setText("paretoNoCapCount", "--");
+        setWidth("paretoNoCapProgress", 0);
+        setText("paretoNoCapPct", "Data tidak tersedia");
+    }
+
+    // SPC Level Isi: Hanya dari API data statistik yang valid
     const spc = qualData?.level_isi_stats;
-    const mean = spc?.mean ?? (bottles.length ? bottles.reduce((acc, b) => acc + (b.level_isi || 0.95), 0) / bottles.length : 0.95);
-    const std = spc?.std ?? 0.045;
-    const min = spc?.min ?? 0.82;
-    const max = spc?.max ?? 1.02;
-    const ucl = spc?.ucl ?? (mean + 3 * std);
-    const lcl = spc?.lcl ?? Math.max(0, mean - 3 * std);
-    const belowSpec = spc?.jumlah_kurang_dari_batas ?? underfill;
-    const totalLiquid = spc?.total_cairan ?? (good * 0.5);
+    const hasValidSpc = spc && typeof spc.mean === "number" && typeof spc.std === "number";
 
-    setText("qualityTotalLiquid", totalLiquid.toFixed(1));
-    setText("spcMean", mean.toFixed(3));
-    setText("spcStd", std.toFixed(4));
-    setText("spcRange", `${min.toFixed(2)} – ${max.toFixed(2)}`);
-    setText("spcUcl", ucl.toFixed(3));
-    setText("spcLcl", lcl.toFixed(3));
-    setText("spcBelowSpec", `${belowSpec} unit`);
+    if (hasValidSpc) {
+        setText("spcMean", spc.mean.toFixed(3));
+        setText("spcStd", spc.std.toFixed(4));
+        setText("spcRange", (typeof spc.min === "number" && typeof spc.max === "number") ? `${spc.min.toFixed(2)} – ${spc.max.toFixed(2)}` : "--");
+        setText("spcUcl", typeof spc.ucl === "number" ? spc.ucl.toFixed(3) : "--");
+        setText("spcLcl", typeof spc.lcl === "number" ? spc.lcl.toFixed(3) : "--");
+        setText("spcBelowSpec", typeof spc.jumlah_kurang_dari_batas === "number" ? `${spc.jumlah_kurang_dari_batas} unit` : (underfill !== null ? `${underfill} unit` : "--"));
+    } else {
+        setText("spcMean", "--");
+        setText("spcStd", "--");
+        setText("spcRange", "--");
+        setText("spcUcl", "--");
+        setText("spcLcl", "--");
+        setText("spcBelowSpec", underfill !== null ? `${underfill} unit` : "--");
+    }
 
     // Audit Defect Per Slot Turret (0..9)
     const slotGrid = $("slotAuditGrid");
     if (slotGrid) {
         slotGrid.replaceChildren();
         const slotCounts = Array(10).fill(0);
+        let hasSlotData = false;
         bottles.forEach(b => {
-            if (b.slot !== undefined && (b.status === "TIDAK_PENUH" || b.status === "TANPA_TUTUP" || b.level_isi < SPEC.qcMinPassLevel)) {
-                slotCounts[b.slot] = (slotCounts[b.slot] || 0) + 1;
+            if (b.slot !== undefined && b.slot !== null) {
+                hasSlotData = true;
+                if (b.status === "TIDAK_PENUH" || b.status === "TANPA_TUTUP" || (typeof b.level_isi === "number" && b.level_isi < SPEC.qcMinPassLevel)) {
+                    slotCounts[b.slot] = (slotCounts[b.slot] || 0) + 1;
+                }
             }
         });
         for (let i = 0; i < 10; i++) {
             const div = document.createElement("div");
             div.className = "slot-box" + (slotCounts[i] > 0 ? " has-defect" : "");
-            div.innerHTML = `<small>Slot ${i}</small><strong>${slotCounts[i]} NG</strong>`;
+            const label = hasSlotData ? `${slotCounts[i]} NG` : "--";
+            div.innerHTML = `<small>Slot ${i}</small><strong>${label}</strong>`;
             slotGrid.appendChild(div);
         }
     }
 }
 
 function renderDowntimeAndReliability(s, relData, dt, events, oeeCalc) {
-    const totalDowntimeSec = relData?.total_downtime_detik ?? (dt?.total_durasi_downtime_detik ?? s.downtime_unplanned ?? 0);
-    const breakdownCount = relData?.jumlah_breakdown ?? (dt?.jumlah_kejadian_downtime ?? events.filter(e => e.jenis === "estop_tekan").length);
-    const operatingTime = relData?.total_operating_time_detik ?? oeeCalc.operatingTime;
+    const totalDowntimeSec = typeof relData?.total_downtime_detik === "number"
+        ? relData.total_downtime_detik
+        : (typeof dt?.total_durasi_downtime_detik === "number"
+            ? dt.total_durasi_downtime_detik
+            : (typeof s.downtime_unplanned === "number" ? s.downtime_unplanned : null));
 
-    const mtbf = relData?.mtbf_detik ?? (breakdownCount > 0 ? operatingTime / breakdownCount : operatingTime);
-    const mttr = relData?.mttr_detik ?? (breakdownCount > 0 ? totalDowntimeSec / breakdownCount : totalDowntimeSec);
-
-    setText("totalDowntime", `Total Downtime: ${fmtDur(totalDowntimeSec)}`);
-    setText("downtimeTotal", fmtDur(totalDowntimeSec));
-    setText("downtimeMTBF", fmtDur(mtbf));
-    setText("downtimeMTTR", fmtDur(mttr));
-    setText("downtimeBreakdownCount", `${breakdownCount} kali`);
-
-    const planned = oeeCalc.plannedTime || 240;
-    const ratePct = planned > 0 ? Math.round((totalDowntimeSec / planned) * 100) : 0;
-    setText("downtimeRate", `Rasio Downtime: ${ratePct}%`);
-
-    // Kategori Downtime
-    setText("catBreakdown", `${Math.round(totalDowntimeSec)} s`);
-    setText("catSetup", `${Math.round(s.setup_time || 15)} s`);
-    setText("catBlockedBin", "0 s");
-    setText("catStarvation", `${Math.round(s.starvation_downtime || 5)} s`);
-    setText("catPackaging", `${Math.round(s.packaging_time || 50)} s`);
+    setText("totalDowntime", totalDowntimeSec !== null ? `Total Downtime: ${fmtDur(totalDowntimeSec)}` : "Total Downtime: --");
 }
 
 function renderInventory(s, invData) {
-    const rackRemain = invData?.sisa_stok_rak_atas ?? (s.sisa_stok_rak_atas ?? 12);
-    const rackCap = invData?.kapasitas_stok_rak_atas ?? (s.kapasitas_stok_rak_atas ?? 100);
-    const restockCount = invData?.jumlah_restock ?? (s.jumlah_restock ?? 0);
-    const autoReplenish = invData?.jumlah_auto_replenish_rak ?? (s.jumlah_auto_replenish_rak ?? 0);
-    const infeedRemain = s.sisa_peti ?? 0;
+    const rackRemain = typeof invData?.sisa_stok_rak_atas === "number"
+        ? invData.sisa_stok_rak_atas
+        : (typeof s.sisa_stok_rak_atas === "number" ? s.sisa_stok_rak_atas : null);
 
-    setText("invRackRemaining", rackRemain);
-    setText("invRackCapacity", rackCap);
-    const rackPct = Math.round((rackRemain / rackCap) * 100);
-    setText("invRackPercentage", `${rackPct}% Kapasitas`);
-    setText("invInfeedRemaining", infeedRemain);
-    setText("invAutoReplenishCount", autoReplenish);
-    setText("invRestockCount", restockCount);
+    const rackCap = typeof invData?.kapasitas_stok_rak_atas === "number"
+        ? invData.kapasitas_stok_rak_atas
+        : (typeof s.kapasitas_stok_rak_atas === "number" ? s.kapasitas_stok_rak_atas : null);
 
-    const needRestock = invData?.butuh_restock ?? (rackRemain <= 2);
-    const alertPill = $("invRackAlertPill");
-    if (alertPill) {
-        alertPill.textContent = needRestock ? "Perlu Restock" : "Aman";
-        alertPill.className = "pill " + (needRestock ? "danger" : "ok");
+    const restockCount = typeof invData?.jumlah_restock === "number"
+        ? invData.jumlah_restock
+        : (typeof s.jumlah_restock === "number" ? s.jumlah_restock : null);
+
+    const autoReplenish = typeof invData?.jumlah_auto_replenish_rak === "number"
+        ? invData.jumlah_auto_replenish_rak
+        : (typeof s.jumlah_auto_replenish_rak === "number" ? s.jumlah_auto_replenish_rak : null);
+
+    const infeedRemain = typeof s.sisa_peti === "number" ? s.sisa_peti : null;
+
+    setText("invRackRemaining", show(rackRemain));
+    setText("invRackCapacity", show(rackCap));
+
+    if (rackRemain !== null && rackCap !== null && rackCap > 0) {
+        const rackPct = Math.round((rackRemain / rackCap) * 100);
+        setText("invRackPercentage", `${rackPct}% Kapasitas`);
+        setText("invRackBarVal", `${rackPct}%`);
+        setWidth("invRackProgress", rackPct);
+    } else {
+        setText("invRackPercentage", "--%");
+        setText("invRackBarVal", "--%");
+        setWidth("invRackProgress", 0);
     }
 
-    setText("invRackBarVal", `${rackPct}%`);
-    setWidth("invRackProgress", rackPct);
+    setText("invInfeedRemaining", show(infeedRemain));
+    setText("invAutoReplenishCount", show(autoReplenish));
+    setText("invRestockCount", show(restockCount));
+
+    const alertPill = $("invRackAlertPill");
+    const statusBadge = $("invRestockStatusBadge");
+    if (rackRemain !== null) {
+        const needRestock = typeof invData?.butuh_restock === "boolean"
+            ? invData.butuh_restock
+            : rackRemain <= 2;
+        if (alertPill) {
+            alertPill.textContent = needRestock ? "Perlu Restock" : "Aman";
+            alertPill.className = "pill " + (needRestock ? "danger" : "ok");
+        }
+        if (statusBadge) {
+            statusBadge.textContent = needRestock ? "Perlu Restock" : "Stok Cukup";
+            statusBadge.className = "pill " + (needRestock ? "danger" : "ok");
+        }
+    } else {
+        if (alertPill) {
+            alertPill.textContent = "Data tidak tersedia";
+            alertPill.className = "pill";
+        }
+        if (statusBadge) {
+            statusBadge.textContent = "--";
+            statusBadge.className = "pill";
+        }
+    }
 
     // Konsumsi Bahan
-    const bottlesUsed = (s.botol_selesai || 0) + (s.wip_turret || 0);
-    const capsUsed = bottlesUsed - (s.reject_tanpa_tutup || 0);
-    const liquidUsed = ((s.botol_ok || 0) * 0.5).toFixed(1);
+    const bottlesUsed = typeof s.botol_selesai === "number"
+        ? s.botol_selesai + (s.wip_turret || 0)
+        : null;
+    const capsUsed = bottlesUsed !== null
+        ? Math.max(0, bottlesUsed - (s.reject_tanpa_tutup || 0))
+        : null;
 
-    setText("invBottlesUsed", bottlesUsed);
-    setText("invCapsUsed", capsUsed);
-    setText("invLiquidUsed", liquidUsed);
+    setText("invBottlesUsed", show(bottlesUsed));
+    setText("invCapsUsed", show(capsUsed));
 }
 
 function renderBatchHistory(batchList) {
@@ -808,17 +971,26 @@ function renderBatchHistory(batchList) {
 
     batchList.forEach(b => {
         const tr = document.createElement("tr");
+        const targetText = b.target_qty !== undefined && b.target_qty !== null ? b.target_qty : "--";
+        const botolText = b.botol_selesai !== undefined && b.botol_selesai !== null ? b.botol_selesai : "--";
+        const mltText = typeof b.mlt_batch === "number" ? Math.round(b.mlt_batch) + " s" : "--";
+        const capText = typeof b.effective_capacity_per_hour === "number" ? Math.round(b.effective_capacity_per_hour) + " bph" : "--";
+        const oeeText = typeof b.oee_pct === "number" ? b.oee_pct.toFixed(1) + "%" : "--";
+        const aText = typeof b.availability_pct === "number" ? b.availability_pct.toFixed(1) + "%" : "--";
+        const pText = typeof b.performance_pct === "number" ? b.performance_pct.toFixed(1) + "%" : "--";
+        const qText = typeof b.quality_pct === "number" ? b.quality_pct.toFixed(1) + "%" : "--";
+
         tr.innerHTML = `
             <td><b>#${b.batch_ke || 1}</b></td>
             <td>${fmtTime(b.waktu_selesai || b.waktu_mulai)}</td>
-            <td>${b.target_qty || 30} / ${b.botol_selesai || 0}</td>
-            <td><span style="color:${GREEN}">${b.botol_ok || 0} OK</span> / <span style="color:${RED}">${b.botol_reject || 0} NG</span></td>
-            <td><b>${(b.oee_pct || 0).toFixed(1)}%</b></td>
-            <td>${(b.availability_pct || 0).toFixed(1)}%</td>
-            <td>${(b.performance_pct || 0).toFixed(1)}%</td>
-            <td>${(b.quality_pct || 0).toFixed(1)}%</td>
-            <td>${Math.round(b.mlt_batch || 240)} s</td>
-            <td>${Math.round(b.effective_capacity_per_hour || 450)} bph</td>
+            <td>${targetText} / ${botolText}</td>
+            <td><span style="color:${GREEN}">${b.botol_ok ?? 0} OK</span> / <span style="color:${RED}">${b.botol_reject ?? 0} NG</span></td>
+            <td><b>${oeeText}</b></td>
+            <td>${aText}</td>
+            <td>${pText}</td>
+            <td>${qText}</td>
+            <td>${mltText}</td>
+            <td>${capText}</td>
         `;
         body.appendChild(tr);
     });
@@ -827,19 +999,24 @@ function renderBatchHistory(batchList) {
 function renderReportPage(d, oeeCalc) {
     const s = d.status || {};
     const total = oeeCalc.botolSelesai;
-    const good = oeeCalc.botolOk;
-    const bad = oeeCalc.botolReject;
     const dur = oeeCalc.downtimeUnplanned;
 
-    setText("reportOee", `${oeeCalc.oeePct}%`);
-    setText("reportProduction", `${total} botol`);
-    setText("reportQuality", `${oeeCalc.qualPct}%`);
-    setText("reportDowntime", fmtDur(dur));
+    setText("reportOee", oeeCalc.oeePct !== null ? `${oeeCalc.oeePct}%` : "--%");
+    setText("reportProduction", total !== null ? `${total} botol` : "--");
+    setText("reportQuality", oeeCalc.qualPct !== null ? `${oeeCalc.qualPct}%` : "--%");
+    setText("reportDowntime", dur !== null ? fmtDur(dur) : "--");
 
-    setText("reportDescription",
-        `Laporan Resmi Mesin MPB-01 · Sesi: ${s.sesi_id || "--"} · Operator: ${s.pengguna || "--"}. ` +
-        `Dari ${total} botol produksi, diperoleh OEE ${oeeCalc.oeePct}% (Availability: ${oeeCalc.availPct}%, ` +
-        `Performance: ${oeeCalc.perfPct}%, Quality: ${oeeCalc.qualPct}%). Total Downtime: ${fmtDur(dur)}.`);
+    if (s.sesi_id) {
+        setText("reportDescription",
+            `Laporan Resmi Mesin MPB-01 · Sesi: ${s.sesi_id} · Operator: ${s.pengguna || "--"}. ` +
+            `Dari ${total !== null ? total : 0} botol produksi, diperoleh OEE ${oeeCalc.oeePct !== null ? oeeCalc.oeePct + "%" : "--%"} ` +
+            `(Availability: ${oeeCalc.availPct !== null ? oeeCalc.availPct + "%" : "--%"}, ` +
+            `Performance: ${oeeCalc.perfPct !== null ? oeeCalc.perfPct + "%" : "--%"}, ` +
+            `Quality: ${oeeCalc.qualPct !== null ? oeeCalc.qualPct + "%" : "--%"}). ` +
+            `Total Downtime: ${dur !== null ? fmtDur(dur) : "--"}.`);
+    } else {
+        setText("reportDescription", "Data laporan belum tersedia. Menunggu telemetri sesi aktif.");
+    }
 }
 
 function setConnectionStatus(apiOk, dbOk, ms, machineOnline, healthText) {
@@ -876,9 +1053,7 @@ async function refresh() {
     try {
         health = await getHealth();
     } catch (err) {
-        setConnectionStatus(false, false, 0, false, IS_LOCAL
-            ? "API lokal dev_server.py tidak terjangkau."
-            : "Koneksi ke backend API gagal.");
+        setConnectionStatus(false, false, 0, false, "Koneksi ke backend API gagal.");
         return;
     }
 
@@ -894,7 +1069,7 @@ async function refresh() {
 
     const q = { sesi_id: status && status.sesi_id };
 
-    // Panggil semua modul spesifikasi secara paralel
+    // Panggil modul spesifikasi aktif secara paralel (tanpa endpoint /laporan yang tidak digunakan frontend)
     const [
         oeeRes,
         wipRes,
@@ -907,8 +1082,7 @@ async function refresh() {
         sumRes,
         evRes,
         btRes,
-        dtRes,
-        lpRes
+        dtRes
     ] = await Promise.allSettled([
         api(`/mesin/${id}/oee`, q),
         api(`/mesin/${id}/wip`, q),
@@ -921,8 +1095,7 @@ async function refresh() {
         api(`/mesin/${id}/ringkasan`, q),
         api(`/mesin/${id}/event`, { ...q, limit: 100 }),
         api(`/mesin/${id}/botol`, { ...q, limit: 50 }),
-        api(`/mesin/${id}/downtime`, q),
-        api(`/mesin/${id}/laporan`, q),
+        api(`/mesin/${id}/downtime`, q)
     ]);
 
     const val = r => (r.status === "fulfilled" ? r.value.data : null);
@@ -969,7 +1142,6 @@ async function refresh() {
 
     // 7. Tabel Events & Botol
     fillTable("eventTable", events.slice(0, 8).map(eventRowTable), 4, "Belum ada event.");
-    fillTable("downtimeTable", events.slice(0, 50).map(eventRowTable), 5, "Belum ada riwayat event.");
     setText("eventInfo", `${Math.min(events.length, 8)} dari ${events.length} event tersimpan.`);
 
     fillTable("bottleTable", bottles.slice(0, 10).map(bottleRowLive), 5, "Belum ada data botol.");
@@ -977,24 +1149,33 @@ async function refresh() {
     fillTable("qualityTable", bottles.slice(0, 30).map(qualityRowTable), 8, "Belum ada data botol.");
 
     // Update Traceability table jika tidak sedang mengetik pencarian
-    if (!$("traceSearch")?.value.trim()) {
+    if (!($("traceSearch")?.value || "").trim()) {
         fillTable("traceTable", bottles.map(qualityRowTable), 8, "Belum ada data botol.");
     }
 
     // 8. Arsip Batch & Laporan
     renderBatchHistory(batchList);
-    renderReportPage({ status, summary, laporan: val(lpRes) }, oeeCalc);
+    renderReportPage({ status, summary }, oeeCalc);
 
     // 9. Timeline bar
-    const runPct = oeeCalc.operatingTime > 0 ? pct(oeeCalc.operatingTime, oeeCalc.plannedTime) : 0;
-    const downPct = oeeCalc.downtimeUnplanned > 0 ? pct(oeeCalc.downtimeUnplanned, oeeCalc.plannedTime) : 0;
-    const warnPct = Math.max(0, 100 - (runPct + downPct));
-    setWidth("runningBar", runPct);
-    setWidth("warningBar", warnPct);
-    setWidth("downtimeBar", downPct);
-    setText("runningPercentage", `🟢 Berjalan (${runPct}%)`);
-    setText("warningPercentage", `🟠 Peringatan / Idle (${warnPct}%)`);
-    setText("downtimePercentage", `🔴 Downtime (${downPct}%)`);
+    if (oeeCalc.plannedTime && oeeCalc.plannedTime > 0) {
+        const runPct = oeeCalc.operatingTime !== null && oeeCalc.operatingTime > 0 ? pct(oeeCalc.operatingTime, oeeCalc.plannedTime) : 0;
+        const downPct = oeeCalc.downtimeUnplanned !== null && oeeCalc.downtimeUnplanned > 0 ? pct(oeeCalc.downtimeUnplanned, oeeCalc.plannedTime) : 0;
+        const warnPct = Math.max(0, 100 - (runPct + downPct));
+        setWidth("runningBar", runPct);
+        setWidth("warningBar", warnPct);
+        setWidth("downtimeBar", downPct);
+        setText("runningPercentage", `🟢 Berjalan (${runPct}%)`);
+        setText("warningPercentage", `🟠 Peringatan / Idle (${warnPct}%)`);
+        setText("downtimePercentage", `🔴 Downtime (${downPct}%)`);
+    } else {
+        setWidth("runningBar", 0);
+        setWidth("warningBar", 0);
+        setWidth("downtimeBar", 0);
+        setText("runningPercentage", "🟢 Berjalan (--%)");
+        setText("warningPercentage", "🟠 Peringatan / Starving (--%)");
+        setText("downtimePercentage", "🔴 Downtime (--%)");
+    }
 
     // 10. Status Koneksi
     const dbText = health?.data?.database;
@@ -1011,4 +1192,4 @@ function updateDate() {
 updateDate();
 refresh();
 setInterval(refresh, POLL_MS);
-console.log("MPB-01 MES Dashboard dimuat. Base API:", API_BASE, "Mesin:", MACHINE_ID);
+console.log("MPB-01 MES Dashboard dimuat. Base API:", apiBase || REMOTE_API, "Mesin:", MACHINE_ID);

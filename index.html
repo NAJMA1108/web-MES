@@ -39,11 +39,6 @@
                     <span class="nav-text">Kualitas & SPC</span>
                 </button>
 
-                <button class="nav-link" data-page="downtime" title="Downtime">
-                    <span class="nav-icon">◷</span>
-                    <span class="nav-text">Downtime & Reliabilitas</span>
-                </button>
-
                 <button class="nav-link" data-page="inventori" title="Inventori">
                     <span class="nav-icon">▦</span>
                     <span class="nav-text">Inventori & Material</span>
@@ -296,166 +291,6 @@
                         </div>
 
                     </div>
-                </div>
-
-
-                <!-- TURRET DAN GPIO -->
-                <div class="machine-grid">
-
-                    <!-- TURRET ROTARY -->
-                    <div class="panel">
-
-                        <div class="panel-title">
-                            <h3>◉ Turret Rotary (10 Slot)</h3>
-                            <span class="pitch" id="turretAngleHeader">0°</span>
-                        </div>
-
-                        <div class="turret-actions">
-                            <button onclick="inchTurret()">
-                                ◉ Inching Turret
-                            </button>
-                            <button onclick="resetTurret()">
-                                ↻ Reset Posisi Nol
-                            </button>
-                        </div>
-
-                        <div class="turret-area">
-
-                            <div class="turret-circle" id="turretCircle">
-
-                                <div class="outer-ring"></div>
-                                <div class="inner-ring"></div>
-
-                                <div class="turret-center">
-                                    <strong id="turretAngle">--°</strong>
-                                    <small id="turretSync">MENUNGGU DATA</small>
-                                </div>
-
-                                <div class="station s1">01</div>
-                                <div class="station s2">02</div>
-                                <div class="station s3">03</div>
-                                <div class="station s4">04</div>
-                                <div class="station s5">05</div>
-                                <div class="station s6">06</div>
-                                <div class="station s7">07</div>
-                                <div class="station s8">08</div>
-                                <div class="station s9">09</div>
-                                <div class="station s10">10</div>
-
-                            </div>
-
-                            <div class="turret-info">
-                                Ideal Cycle Time: <b id="idealCycleDisplay">4.1 s</b> |
-                                Actual Rata-rata: <b id="actualCycleDisplay">-- s</b>
-                            </div>
-
-                            <div class="homing-info" id="homingStatus">
-                                ● Status QC Terakhir: <b id="lastQcStatusText">--</b>
-                            </div>
-
-                        </div>
-
-                        <div class="turret-legend">
-                            <span>🔵 Slot 1: Infeed</span>
-                            <span>🟢 Slot 4: Isi Pompa</span>
-                            <span>🟤 Slot 8: Capping</span>
-                            <span>🔴 Slot 9: QC / Out</span>
-                        </div>
-
-                    </div>
-
-
-                    <!-- GPIO DIGITAL TWIN -->
-                    <div class="panel">
-
-                        <div class="panel-title">
-                            <h3>▦ Panel GPIO & Driver Mesin</h3>
-                            <span class="gpio-badge">Opto-Isolated</span>
-                        </div>
-
-                        <p class="gpio-description">
-                            Status real-time sensor optik, limit switch, pompa, dan driver stepper.
-                        </p>
-
-                        <div class="gpio-grid">
-
-                            <div class="gpio-item">
-                                <div>
-                                    <b>STEP</b>
-                                    <strong id="gpioStep">MENUNGGU DATA</strong>
-                                </div>
-                                <span class="indicator inactive" id="indicatorStep"></span>
-                            </div>
-
-                            <div class="gpio-item">
-                                <div>
-                                    <b>DIR</b>
-                                    <strong id="gpioDir">MENUNGGU DATA</strong>
-                                </div>
-                                <span class="indicator inactive" id="indicatorDir"></span>
-                            </div>
-
-                            <div class="gpio-item">
-                                <div>
-                                    <b>EN</b>
-                                    <strong id="gpioEnable">MENUNGGU DATA</strong>
-                                </div>
-                                <span class="indicator inactive" id="indicatorEnable"></span>
-                            </div>
-
-                            <div class="gpio-item">
-                                <div>
-                                    <b>POMPA</b>
-                                    <strong id="gpioPump">MENUNGGU DATA</strong>
-                                </div>
-                                <span class="indicator inactive" id="indicatorPump"></span>
-                            </div>
-
-                            <div class="gpio-item">
-                                <div>
-                                    <b>BUZZER</b>
-                                    <strong class="off" id="gpioBuzzer">MENUNGGU DATA</strong>
-                                </div>
-                                <span class="indicator inactive" id="indicatorBuzzer"></span>
-                            </div>
-
-                            <div class="gpio-item">
-                                <div>
-                                    <b>IR</b>
-                                    <strong id="gpioIR">MENUNGGU DATA</strong>
-                                </div>
-                                <span class="indicator inactive" id="indicatorIR"></span>
-                            </div>
-
-                            <div class="gpio-item">
-                                <div>
-                                    <b>START</b>
-                                    <strong id="gpioStart">MENUNGGU DATA</strong>
-                                </div>
-                                <span class="indicator inactive" id="indicatorStart"></span>
-                            </div>
-
-                            <div class="gpio-item">
-                                <div>
-                                    <b>LIMIT</b>
-                                    <strong class="off" id="gpioLimit">MENUNGGU DATA</strong>
-                                </div>
-                                <span class="indicator inactive" id="indicatorLimit"></span>
-                            </div>
-
-                        </div>
-
-                        <div class="gpio-footer">
-                            ⚡ Sinyal Bus:
-                            <b id="busVoltage">24 V DC</b>
-
-                            <span>
-                                Latensi: <b id="apiLatency">--</b>
-                            </span>
-                        </div>
-
-                    </div>
-
                 </div>
 
 
@@ -829,7 +664,7 @@
                     <p>First Pass Yield, Diagram Pareto Cacat Produk, dan Statistik Kendali Mutu (SPC) Level Isi.</p>
                 </div>
 
-                <div class="stats-grid">
+                <div class="stats-grid three-cards">
 
                     <div class="stat-card">
                         <div class="stat-label">FIRST PASS YIELD (FPY)</div>
@@ -852,14 +687,6 @@
                         <h1 class="danger" id="qualityReject">--</h1>
                         <div class="stat-footer">
                             <span id="qualityRejectPct">--% cacat</span>
-                        </div>
-                    </div>
-
-                    <div class="stat-card">
-                        <div class="stat-label">TOTAL KONSUMSI CAIRAN</div>
-                        <h1><span id="qualityTotalLiquid">--</span> <small>Liter</small></h1>
-                        <div class="stat-footer">
-                            <span>Estimasi Cairan Terisi</span>
                         </div>
                     </div>
 
@@ -1004,138 +831,7 @@
             </section>
 
 
-            <!-- ===================================
-                 HALAMAN DOWNTIME & RELIABILITAS
-            ==================================== -->
-            <section class="page" id="page-downtime">
 
-                <div class="page-heading">
-                    <h2>Downtime & Reliabilitas Mesin</h2>
-                    <p>Klasifikasi Gangguan, Mean Time Between Failures (MTBF), Mean Time to Repair (MTTR), dan Log Alarm.</p>
-                </div>
-
-                <div class="stats-grid">
-
-                    <div class="stat-card">
-                        <div class="stat-label">TOTAL DOWNTIME (UNPLANNED)</div>
-                        <h1 class="danger" id="downtimeTotal">--</h1>
-                        <div class="stat-footer">
-                            <span id="downtimeRate">Rasio Downtime: --%</span>
-                        </div>
-                    </div>
-
-                    <div class="stat-card">
-                        <div class="stat-label">MTBF (MEAN TIME BETWEEN FAILURES)</div>
-                        <h1 id="downtimeMTBF">--</h1>
-                        <div class="stat-footer">
-                            <span>Waktu Operasi / Jumlah Gangguan</span>
-                        </div>
-                    </div>
-
-                    <div class="stat-card">
-                        <div class="stat-label">MTTR (MEAN TIME TO REPAIR)</div>
-                        <h1 id="downtimeMTTR">--</h1>
-                        <div class="stat-footer">
-                            <span>Rata-rata Waktu Perbaikan</span>
-                        </div>
-                    </div>
-
-                    <div class="stat-card">
-                        <div class="stat-label">FREKUENSI BREAKDOWN</div>
-                        <h1 id="downtimeBreakdownCount">--</h1>
-                        <div class="stat-footer">
-                            <span id="downtimeMachineStatus">Status: --</span>
-                        </div>
-                    </div>
-
-                </div>
-
-
-                <!-- KLASIFIKASI DOWNTIME STANDAR MES -->
-                <div class="panel content-panel">
-
-                    <h3>Kategori Standar Downtime & Penyebab Gangguan</h3>
-                    <p style="color:var(--muted);margin-bottom:14px">
-                        Klasifikasi downtime untuk pareto gangguan sistem pengisian botol.
-                    </p>
-
-                    <div class="losses-grid">
-
-                        <div class="loss-item">
-                            <div class="loss-item-label">
-                                <strong>UNPLANNED_BREAKDOWN</strong>
-                                <small>E-Stop ditekan / Gangguan mekanik tak terduga</small>
-                            </div>
-                            <span class="loss-item-val" id="catBreakdown">-- s</span>
-                        </div>
-
-                        <div class="loss-item">
-                            <div class="loss-item-label">
-                                <strong>PLANNED_SETUP</strong>
-                                <small>Persiapan awal batch / Pengambilan peti rak</small>
-                            </div>
-                            <span class="loss-item-val" id="catSetup" style="color:var(--navy)">-- s</span>
-                        </div>
-
-                        <div class="loss-item">
-                            <div class="loss-item-label">
-                                <strong>BLOCKED_FULL_BIN</strong>
-                                <small>Kotak OK atau Wadah Reject penuh (Menunggu operator)</small>
-                            </div>
-                            <span class="loss-item-val" id="catBlockedBin" style="color:var(--orange)">-- s</span>
-                        </div>
-
-                        <div class="loss-item">
-                            <div class="loss-item-label">
-                                <strong>STARVATION (IDLING)</strong>
-                                <small>Turret menunggu botol kosong di meja infeed</small>
-                            </div>
-                            <span class="loss-item-val" id="catStarvation" style="color:var(--orange)">-- s</span>
-                        </div>
-
-                        <div class="loss-item">
-                            <div class="loss-item-label">
-                                <strong>PACKAGING_WAIT</strong>
-                                <small>Proses packing botol ke kardus & meletakkan ke palet</small>
-                            </div>
-                            <span class="loss-item-val" id="catPackaging" style="color:var(--navy)">-- s</span>
-                        </div>
-
-                    </div>
-
-                </div>
-
-
-                <!-- RIWAYAT EVENT DOWNTIME -->
-                <div class="panel content-panel">
-
-                    <h3>Riwayat Event & Alarm Mesin</h3>
-
-                    <div class="table-wrap">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>WAKTU</th>
-                                    <th>JENIS EVENT</th>
-                                    <th>SUMBER</th>
-                                    <th>KATEGORI DOWNTIME</th>
-                                    <th>TRANSISI MODE / KETERANGAN</th>
-                                </tr>
-                            </thead>
-
-                            <tbody id="downtimeTable">
-                                <tr>
-                                    <td colspan="5" style="text-align:center">
-                                        Menunggu riwayat event dari API...
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-
-                </div>
-
-            </section>
 
 
             <!-- ===================================
@@ -1178,7 +874,7 @@
                         <div class="stat-label">RESTOCK MANUAL</div>
                         <h1><span id="invRestockCount">--</span> <small>kali</small></h1>
                         <div class="stat-footer">
-                            <span id="invRestockStatusBadge" class="pill ok">Stok Cukup</span>
+                            <span id="invRestockStatusBadge" class="pill">--</span>
                         </div>
                     </div>
 
@@ -1206,15 +902,6 @@
                             </div>
                             <h3><span id="invCapsUsed">--</span> <small>tutup</small></h3>
                             <small style="color:var(--muted)">Stasiun Capping</small>
-                        </div>
-
-                        <div class="wip-station">
-                            <div class="wip-station-header">
-                                <b>Konsumsi Cairan Air</b>
-                                <span class="pill info">Volume</span>
-                            </div>
-                            <h3><span id="invLiquidUsed">--</span> <small>Liter</small></h3>
-                            <small style="color:var(--muted)">Total isi botol (Level × Kapasitas)</small>
                         </div>
 
                         <div class="wip-station">

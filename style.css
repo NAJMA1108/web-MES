@@ -543,6 +543,10 @@ button {
     margin-bottom: 14px;
 }
 
+.stats-grid.three-cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .stat-card {
     background: var(--card);
     padding: 22px;
@@ -632,17 +636,11 @@ button {
     letter-spacing: 0.3px;
 }
 
-.pitch,
-.gpio-badge {
+.pitch {
     background: var(--soft);
     padding: 6px 12px;
     border-radius: 20px;
     font-size: 13px;
-}
-
-.gpio-badge {
-    background: var(--green-bg);
-    color: var(--green);
 }
 
 /* =========================
@@ -656,280 +654,9 @@ button {
     margin-top: 14px;
 }
 
-.turret-actions {
-    display: flex;
-    gap: 7px;
-    margin: 12px 0;
-}
 
-.turret-actions button {
-    background: var(--soft);
-    color: var(--text);
-    padding: 9px 14px;
-    border: none;
-    border-radius: 12px;
-    font-size: 15px;
-    font-weight: 600;
-    transition: 0.2s;
-}
 
-.turret-actions button:hover {
-    background: var(--peri);
-    color: white;
-}
 
-.turret-area {
-    height: 390px;
-    background: var(--soft);
-    border-radius: 16px;
-    position: relative;
-    display: grid;
-    place-items: center;
-    overflow: hidden;
-}
-
-.turret-circle {
-    width: 220px;
-    height: 220px;
-    position: relative;
-    transform: scale(1.3);
-}
-
-.outer-ring,
-.inner-ring {
-    position: absolute;
-    border-radius: 50%;
-    border: 1px solid var(--line);
-}
-
-.outer-ring {
-    width: 100%;
-    height: 100%;
-    background: var(--soft2);
-    border: 2px dashed var(--peri);
-}
-
-.inner-ring {
-    width: 66%;
-    height: 66%;
-    top: 17%;
-    left: 17%;
-    background: var(--soft);
-}
-
-.turret-center {
-    position: absolute;
-    width: 92px;
-    height: 92px;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    border-radius: 50%;
-    background: var(--card);
-    border: 2px solid var(--line);
-    box-shadow: var(--shadow);
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    z-index: 2;
-}
-
-.turret-center strong {
-    font-family: 'Oswald', sans-serif;
-    color: var(--navy);
-    font-size: 20px;
-}
-
-body.dark-mode .turret-center strong {
-    color: var(--peri);
-}
-
-.turret-center small {
-    color: var(--green);
-    font-size: 12px;
-    font-weight: bold;
-}
-
-.station {
-    position: absolute;
-    width: 28px;
-    height: 28px;
-    background: var(--card);
-    border: 2px solid var(--line);
-    border-radius: 50%;
-    display: grid;
-    place-items: center;
-    font-size: 12px;
-    font-weight: bold;
-    box-shadow: var(--shadow);
-    z-index: 3;
-}
-
-.active-station {
-    border-color: var(--green);
-    background: var(--green-bg);
-    box-shadow: 0 0 0 4px rgba(0, 134, 92, 0.18);
-}
-
-.filled {
-    background: var(--navy);
-    color: white;
-    border-color: var(--navy);
-}
-
-/* 10 slot tersusun melingkar (slot 01 di atas, searah jarum jam) */
-.s1 {
-    top: 0;
-    left: 96px;
-}
-
-.s2 {
-    top: 18px;
-    left: 152px;
-}
-
-.s3 {
-    top: 66px;
-    left: 187px;
-}
-
-.s4 {
-    top: 126px;
-    left: 187px;
-}
-
-.s5 {
-    top: 174px;
-    left: 152px;
-}
-
-.s6 {
-    top: 192px;
-    left: 96px;
-}
-
-.s7 {
-    top: 174px;
-    left: 40px;
-}
-
-.s8 {
-    top: 126px;
-    left: 5px;
-}
-
-.s9 {
-    top: 66px;
-    left: 5px;
-}
-
-.s10 {
-    top: 18px;
-    left: 40px;
-}
-
-.turret-info,
-.homing-info {
-    position: absolute;
-    bottom: 7px;
-    background: var(--card);
-    padding: 6px 12px;
-    border-radius: 20px;
-    font-size: 12px;
-    z-index: 5;
-}
-
-.turret-info {
-    left: 8px;
-}
-
-.homing-info {
-    right: 8px;
-    color: var(--green);
-}
-
-.turret-legend {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 15px;
-    margin-top: 13px;
-    font-size: 13px;
-    color: var(--muted);
-}
-
-/* =========================
-   GPIO
-========================= */
-
-.gpio-description {
-    font-size: 15px;
-    color: var(--muted);
-    line-height: 1.5;
-    margin: 12px 0;
-}
-
-.gpio-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 9px;
-}
-
-.gpio-item {
-    background: var(--soft);
-    border-radius: 14px;
-    padding: 15px 16px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 5px;
-}
-
-.gpio-item b,
-.gpio-item strong {
-    display: block;
-    font-size: 12px;
-}
-
-.gpio-item b {
-    letter-spacing: 1px;
-    color: var(--muted);
-}
-
-.gpio-item strong {
-    color: var(--green);
-    margin-top: 4px;
-}
-
-.gpio-item strong.off {
-    color: var(--muted);
-}
-
-.indicator {
-    width: 14px;
-    height: 14px;
-    flex-shrink: 0;
-    background: var(--green);
-    border-radius: 50%;
-    box-shadow: 0 0 5px rgba(0, 134, 92, 0.4);
-}
-
-.indicator.inactive {
-    background: #c5c8e6;
-    box-shadow: none;
-}
-
-.gpio-footer {
-    margin-top: 30px;
-    background: var(--soft);
-    padding: 12px 14px;
-    border-radius: 14px;
-    font-size: 13px;
-    display: flex;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 8px;
-}
 
 /* =========================
    TIMELINE (kartu gelap)
@@ -1163,16 +890,15 @@ body.dark-mode .simulation {
     color: #ffb4bd;
 }
 
-body.dark-mode .indicator.inactive {
-    background: #4b4f86;
-}
+
 
 /* =========================
    RESPONSIVE
 ========================= */
 
 @media (max-width: 1100px) {
-    .stats-grid {
+    .stats-grid,
+    .stats-grid.three-cards {
         grid-template-columns: repeat(2, 1fr);
     }
 
@@ -1277,7 +1003,8 @@ body.dark-mode .indicator.inactive {
         flex-wrap: wrap;
     }
 
-    .stats-grid {
+    .stats-grid,
+    .stats-grid.three-cards {
         grid-template-columns: 1fr;
     }
 
@@ -1285,20 +1012,8 @@ body.dark-mode .indicator.inactive {
         font-size: 18px;
     }
 
-    .turret-area {
-        height: 410px;
-    }
-
-    .turret-legend {
-        gap: 8px;
-    }
-
     .timeline-legend {
         justify-content: flex-start;
-    }
-
-    .gpio-footer {
-        margin-top: 20px;
     }
 }
 
